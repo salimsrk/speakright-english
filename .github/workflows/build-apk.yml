@@ -37,16 +37,21 @@ jobs:
           rm -rf build_app/assets
           cp -r source/assets build_app/assets
 
-      # The study-themed app icon is committed to the repo as base64 TEXT
-      # (assets/icon/app_icon.png.b64) rather than a binary PNG, because
-      # every other file in this repo is edited through the GitHub web
-      # editor, which can only reliably push plain text. We decode it back
-      # into a real PNG here, right before flutter_launcher_icons reads it.
-      - name: Decode the app icon from base64
+      # The study-themed app icon is generated here from a small Python
+      # script (assets/icon/generate_icon.py) rather than committed as a
+      # binary PNG or a base64 blob. This repo has no working git/gh CLI in
+      # our build environment -- only the GitHub web editor, which only
+      # reliably pushes plain text -- and two earlier attempts to commit the
+      # icon as a manually-retyped base64 string were silently corrupted a
+      # few bytes in, producing an unreadable PNG even though every length
+      # check passed. A script has no such risk: any transcription slip is
+      # an obvious Python syntax error, not silent pixel corruption.
+      - name: Generate the study-themed app icon PNG
+        working-directory: build_app
         run: |
-          base64 -d build_app/assets/icon/app_icon.png.b64 > build_app/assets/icon/app_icon.png
-          rm -f build_app/assets/icon/app_icon.png.b64
-          ls -lh build_app/assets/icon/
+          pip install --quiet --break-system-packages pillow numpy
+          python3 assets/icon/generate_icon.py
+          ls -lh assets/icon/
 
       - name: Add microphone permission + speech-recognition query to AndroidManifest.xml
         run: |
