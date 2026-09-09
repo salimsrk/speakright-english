@@ -144,24 +144,60 @@ class StudentMic {
 
     final service = await _freshSpeechService();
     final completer = Completer<String>();
-    StreamSubscription? sub;
+    StreamSubscription? resultSub;
+    StreamSubscription? partialSub;
     Timer? timer;
+    Timer? grace;
+    // Vosk keeps updating a "partial" transcript live while the student is
+    // talking, but by default it only ever finalizes ("result") a phrase
+    // when we explicitly call stop() — it does NOT reliably finalize just
+    // because the student paused. Earlier this listener threw the partial
+    // transcript away and only acted on a "result" event, so on a normal
+    // short answer nothing ever arrived before the timer fired — the exact
+    // "Listening… never captures what I said" bug. We now track the latest
+    // partial as a fallback, and stop() before giving up.
+    String lastPartial = "";
+    bool stopRequested = false;
 
     void finish(String text) {
       if (!completer.isCompleted) completer.complete(text);
-      sub?.cancel();
+      resultSub?.cancel();
+      partialSub?.cancel();
       timer?.cancel();
+      grace?.cancel();
       service.stop();
     }
 
-    sub = service.onResult().listen((resultJson) {
+    void requestStop() {
+      if (stopRequested) return;
+      stopRequested = true;
+      timer?.cancel();
+      // Calling stop() makes Vosk flush whatever it has heard so far as
+      // one final "result" event on the same onResult() stream below.
+      // Give that a brief moment to arrive instead of discarding it —
+      // this is the part that was missing before, and the actual reason
+      // real speech was never being captured.
+      service.stop();
+      grace = Timer(const Duration(milliseconds: 1200), () => finish(lastPartial));
+    }
+
+    resultSub = service.onResult().listen((resultJson) {
       final text = _extractText(resultJson);
-      if (text.isNotEmpty) finish(text);
-    }, onError: (_) {
-      finish("");
+      if (text.isNotEmpty) {
+        finish(text);
+      } else if (stopRequested) {
+        // The post-stop() flush arrived but had nothing new — fall back
+        // to the last live partial transcript instead of an empty string.
+        finish(lastPartial);
+      }
+    }, onError: (_) => finish(lastPartial));
+
+    partialSub = service.onPartial().listen((partialJson) {
+      final text = _extractText(partialJson);
+      if (text.isNotEmpty) lastPartial = text;
     });
 
-    timer = Timer(timeout, () => finish(""));
+    timer = Timer(timeout, requestStop);
 
     final started = await service.start();
     if (started == false) {
@@ -177,11 +213,15 @@ class StudentMic {
     await _speechService?.stop();
   }
 
+  /// Reads either a final result (`{"text": "..."}`) or a live partial
+  /// result (`{"partial": "..."}`) — Vosk uses different JSON keys for
+  /// each, so we check both.
   String _extractText(dynamic resultJson) {
     try {
       final decoded = resultJson is String ? jsonDecode(resultJson) : resultJson;
-      if (decoded is Map && decoded["text"] != null) {
-        return (decoded["text"] as String).trim();
+      if (decoded is Map) {
+        final value = decoded["text"] ?? decoded["partial"];
+        if (value is String) return value.trim();
       }
     } catch (_) {
       // fall through
