@@ -65,25 +65,34 @@ jobs:
           print(content)
           PY
 
-      - name: Set minSdkVersion to 23 (required by the offline voice packages)
+      - name: Set minSdkVersion to 30 (required by the offline voice package)
         run: |
           python3 - <<'PY'
-          import re, glob
-          candidates = glob.glob("build_app/android/**/build.gradle*", recursive=True)
+          import glob, os
+          # Instead of trying to find-and-replace the auto-generated
+          # "minSdk = flutter.minSdkVersion" line (fragile — its exact
+          # wording/spacing changes between Flutter versions and the last
+          # regex attempt silently failed to match, leaving the default of
+          # 24 in place), we just APPEND a second "android { defaultConfig
+          # { ... } }" block at the end of the file. Gradle (both the
+          # Kotlin DSL .kts and classic Groovy .gradle forms) lets you call
+          # the android {} block more than once in the same file — each
+          # call re-enters the same extension, so a later assignment simply
+          # overrides the earlier one. This guarantees minSdk ends up as 30
+          # no matter what the generated file originally said.
+          candidates = glob.glob("build_app/android/app/build.gradle*")
           for path in candidates:
-              if "android/app/build.gradle" not in path.replace("\\", "/"):
-                  continue
+              is_kts = path.endswith(".kts")
+              snippet = (
+                  '\nandroid {\n    defaultConfig {\n        minSdk = 30\n    }\n}\n'
+                  if is_kts else
+                  '\nandroid {\n    defaultConfig {\n        minSdkVersion 30\n    }\n}\n'
+              )
+              with open(path, "a", encoding="utf-8") as f:
+                  f.write(snippet)
+              print(f"Appended minSdk override to {path}")
               with open(path, "r", encoding="utf-8") as f:
-                  content = f.read()
-              # [ \t] (never \s) so the match can't cross a newline, and the
-              # negative lookbehind skips "flutter.minSdkVersion" — matching
-              # that by accident is what merged two lines into one earlier.
-              new_content = re.sub(r"(?<!\.)\bminSdkVersion[ \t]+\S+", "minSdkVersion 23", content)
-              new_content = re.sub(r"(?<!\.)\bminSdk[ \t]*=[ \t]*\S+", "minSdk = 23", new_content)
-              if new_content != content:
-                  with open(path, "w", encoding="utf-8") as f:
-                      f.write(new_content)
-                  print(f"Patched {path}")
+                  print(f.read())
           PY
 
       - name: flutter pub get
