@@ -16,37 +16,72 @@ class StudentMic {
   static const _sampleRate = 16000;
 
   final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
+  Model? _model;
+  Recognizer? _recognizer;
   SpeechService? _speechService;
   bool _initializing = false;
-  bool _ready = false;
+  bool _modelReady = false;
   String? _initError;
 
-  bool get isReady => _ready;
+  bool get isReady => _modelReady;
   String? get initError => _initError;
 
-  Future<bool> init() async {
-    if (_ready) return true;
+  /// Loads the (slow-ish, ~1s) model + recognizer once and keeps them for
+  /// the whole app session. Safe to call many times — it only does the
+  /// real work the first time.
+  Future<bool> _ensureModelReady() async {
+    if (_modelReady) return true;
     if (_initializing) {
       // Wait for the in-flight init to finish.
       while (_initializing) {
         await Future.delayed(const Duration(milliseconds: 100));
       }
-      return _ready;
+      return _modelReady;
     }
     _initializing = true;
     try {
       final modelPath = await ModelLoader().loadFromAssets(_modelAsset);
-      final model = await _vosk.createModel(modelPath);
-      final recognizer = await _vosk.createRecognizer(model: model, sampleRate: _sampleRate);
-      _speechService = await _vosk.initSpeechService(recognizer);
-      _ready = true;
+      _model = await _vosk.createModel(modelPath);
+      _recognizer = await _vosk.createRecognizer(model: _model!, sampleRate: _sampleRate);
+      _modelReady = true;
     } catch (e) {
       _initError = e.toString();
-      _ready = false;
+      _modelReady = false;
     } finally {
       _initializing = false;
     }
-    return _ready;
+    return _modelReady;
+  }
+
+  /// Backward-compatible alias — pre-warms the model/recognizer without
+  /// starting to listen. Safe to call eagerly (e.g. on the Home screen)
+  /// so the very first "Your turn" press doesn't have to wait for it.
+  Future<bool> init() => _ensureModelReady();
+
+  /// Creates a brand-new native speech-recognition session for this one
+  /// listening attempt, instead of reusing the previous one.
+  ///
+  /// Why: the offline voice engine records audio on its own background
+  /// thread. If a previous attempt ever hit a hiccup on that thread, the
+  /// native side can be left thinking recording is still "in progress"
+  /// forever — every future start() call then silently does nothing,
+  /// which is exactly the "shows Listening… and never responds" bug.
+  /// Disposing and recreating the speech service for every attempt (it
+  /// reuses the already-loaded model, so this is cheap) guarantees each
+  /// attempt starts from a clean slate.
+  Future<SpeechService> _freshSpeechService() async {
+    final old = _speechService;
+    _speechService = null;
+    if (old != null) {
+      try {
+        await old.dispose();
+      } catch (_) {
+        // Ignore — we're replacing it either way.
+      }
+    }
+    final service = await _vosk.initSpeechService(_recognizer!);
+    _speechService = service;
+    return service;
   }
 
   /// Listens for a single utterance and returns the transcript.
@@ -57,12 +92,12 @@ class StudentMic {
       throw StateError("mic-permission-denied");
     }
 
-    final ok = await init();
-    if (!ok || _speechService == null) {
+    final modelOk = await _ensureModelReady();
+    if (!modelOk || _recognizer == null) {
       throw StateError(_initError ?? "mic-unavailable");
     }
 
-    final service = _speechService!;
+    final service = await _freshSpeechService();
     final completer = Completer<String>();
     StreamSubscription? sub;
     Timer? timer;
@@ -83,7 +118,13 @@ class StudentMic {
 
     timer = Timer(timeout, () => finish(""));
 
-    await service.start();
+    final started = await service.start();
+    if (started == false) {
+      // Native side refused to start — fail fast instead of silently
+      // sitting on "Listening…" for the whole timeout.
+      finish("");
+    }
+
     return completer.future;
   }
 
