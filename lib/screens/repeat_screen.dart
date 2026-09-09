@@ -45,9 +45,14 @@ class _RepeatScreenState extends State<RepeatScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = e.toString().contains("mic-permission-denied")
+        final msg = e.toString();
+        // TEMPORARY: show the real underlying error instead of a generic
+        // message, so we can see the exact native failure on this phone
+        // (there is no way to pull device logs remotely) and fix the real
+        // cause instead of guessing again.
+        _error = msg.contains("mic-permission-denied")
             ? "Please allow microphone access to practice speaking."
-            : "Speaking practice couldn't start. Please try again.";
+            : "Speaking practice couldn't start: $msg";
         _listening = false;
       });
     }
