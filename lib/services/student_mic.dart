@@ -31,16 +31,29 @@ class StudentMic {
   /// them for the whole app session. Safe to call many times — it only
   /// does the real work the first time.
   ///
-  /// Every native step here is wrapped in its own timeout. Reason: on the
-  /// very first "Your turn" of a fresh install, this whole chain (unzip →
-  /// createModel → createRecognizer) has to run before the student's 8s
-  /// listening window even starts, and none of those native calls are
-  /// covered by that window's timer. If any single one of them ever fails
-  /// to call back to Dart (a native hiccup on a background thread, exactly
-  /// like the recording hang we fixed earlier — just at a different stage)
-  /// there was nothing stopping the whole app from sitting on "Listening…"
-  /// forever with no error and no result. Now every step gives up after a
-  /// bounded time and reports a real error instead of hanging silently.
+  /// THE REAL ROOT CAUSE (found after increasing timeouts alone did not
+  /// fix a real device's repeated "model-create-timeout"): the underlying
+  /// vosk_flutter_2 plugin's ModelLoader caches the unzipped model by
+  /// simply checking whether the destination folder already EXISTS on
+  /// disk — it has no way to tell a fully-extracted model apart from one
+  /// that was interrupted partway (app killed mid-unzip, an earlier
+  /// build's tighter timeout firing while extraction was still running,
+  /// etc). Once that happens, every future load — including after
+  /// installing a new APK version, since Android keeps app-private
+  /// storage across a plain "install over", not a full uninstall — sees
+  /// the folder, assumes it's complete, and hands the broken files
+  /// straight to the native model loader, which then hangs or fails the
+  /// exact same way forever. No amount of waiting longer fixes a load
+  /// that was never going to succeed. So this device very likely got its
+  /// model folder corrupted once, early in our testing, and has been
+  /// stuck replaying that same corruption on every attempt since.
+  ///
+  /// The fix: if a normal load fails, don't just give up — assume the
+  /// cached copy may be corrupt and force one completely fresh re-extract
+  /// (`forceReload: true`, which skips that unreliable "does the folder
+  /// exist" check and re-unzips for real) before finally giving up. This
+  /// self-heals automatically, with no need for the student to manually
+  /// uninstall the app.
   Future<bool> _ensureModelReady() async {
     if (_modelReady) return true;
     if (_initializing) {
@@ -52,36 +65,52 @@ class StudentMic {
     }
     _initializing = true;
     try {
-      // These timeouts used to be much tighter (30s/15s/10s). A real device
-      // reported a genuine "model-create-timeout" at 15s — this step loads
-      // the whole acoustic+language model into memory and can legitimately
-      // take much longer than a fast emulator on a slower or busier phone.
-      // We'd rather wait generously (this only ever happens once per app
-      // session, usually already finished in the background before the
-      // student even opens a lesson) than fail a real, working load.
-      final modelPath = await ModelLoader().loadFromAssets(_modelAsset).timeout(
-            const Duration(seconds: 45),
-            onTimeout: () => throw TimeoutException("model-extract-timeout"),
-          );
-      _model = await _vosk.createModel(modelPath).timeout(
-            const Duration(seconds: 75),
-            onTimeout: () => throw TimeoutException("model-create-timeout"),
-          );
-      _recognizer = await _vosk
-          .createRecognizer(model: _model!, sampleRate: _sampleRate)
-          .timeout(const Duration(seconds: 30), onTimeout: () => throw TimeoutException("recognizer-create-timeout"));
-      _modelReady = true;
-    } catch (e) {
-      _initError = e.toString();
-      _modelReady = false;
-      // Leave things in a clean state so the NEXT attempt starts fresh
-      // instead of being wedged on a half-built model/recognizer forever.
-      _model = null;
-      _recognizer = null;
+      _modelReady = await _tryLoadModel(forceReload: false);
+      if (!_modelReady) {
+        _modelReady = await _tryLoadModel(forceReload: true);
+      }
     } finally {
       _initializing = false;
     }
     return _modelReady;
+  }
+
+  /// One full attempt at unzip → createModel → createRecognizer. Every
+  /// native step is wrapped in its own timeout: on the very first "Your
+  /// turn" of a fresh install this whole chain has to run before the
+  /// student's 8s listening window even starts, and none of those native
+  /// calls are covered by that window's timer. If any single one of them
+  /// ever fails to call back to Dart (a native hiccup on a background
+  /// thread, or the corrupted-cache hang described above) there would be
+  /// nothing stopping the whole app from sitting on "Preparing…" forever
+  /// with no error and no result.
+  Future<bool> _tryLoadModel({required bool forceReload}) async {
+    try {
+      final modelPath = await ModelLoader()
+          .loadFromAssets(_modelAsset, forceReload: forceReload)
+          .timeout(
+            Duration(seconds: forceReload ? 60 : 30),
+            onTimeout: () => throw TimeoutException("model-extract-timeout"),
+          );
+      final model = await _vosk.createModel(modelPath).timeout(
+            Duration(seconds: forceReload ? 60 : 40),
+            onTimeout: () => throw TimeoutException("model-create-timeout"),
+          );
+      final recognizer = await _vosk
+          .createRecognizer(model: model, sampleRate: _sampleRate)
+          .timeout(const Duration(seconds: 30), onTimeout: () => throw TimeoutException("recognizer-create-timeout"));
+      _model = model;
+      _recognizer = recognizer;
+      return true;
+    } catch (e) {
+      _initError = e.toString();
+      // Leave things in a clean state so the NEXT attempt (the forced
+      // fresh reload, or a future session) starts from scratch instead of
+      // being wedged on a half-built model/recognizer forever.
+      _model = null;
+      _recognizer = null;
+      return false;
+    }
   }
 
   /// Pre-warms the model/recognizer without starting to listen. Safe to
@@ -125,12 +154,19 @@ class StudentMic {
   /// This outer wrapper is a second, coarser safety net on top of all the
   /// per-step timeouts above: no matter which native call turns out to be
   /// the culprit on a given phone, the student is guaranteed to see the
-  /// "Listening…" state end — as a normal "didn't catch that, try again"
-  /// — instead of it being stuck with no response, which is the exact bug
-  /// this whole file exists to prevent.
+  /// "Listening…"/"Preparing…" state end — as a normal "didn't catch
+  /// that, try again" — instead of it being stuck with no response, which
+  /// is the exact bug this whole file exists to prevent.
+  ///
+  /// The generous 260s here (only ever spent once, on the very first mic
+  /// use of a session, if it needs to self-heal a corrupted model cache —
+  /// see the comment on _ensureModelReady) is sized to comfortably cover
+  /// the worst case of BOTH a full first attempt timing out on every step
+  /// AND the forced fresh-reload retry after it also needing its full
+  /// budget, so a real slow-but-working device is never cut off too early.
   Future<String> listenOnce({Duration timeout = const Duration(seconds: 8)}) {
     return _listenOnceInner(timeout).timeout(
-      timeout + const Duration(seconds: 130),
+      timeout + const Duration(seconds: 260),
       onTimeout: () => "",
     );
   }
