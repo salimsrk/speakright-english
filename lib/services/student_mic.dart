@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vosk_flutter_2/vosk_flutter_2.dart';
 
@@ -14,6 +16,10 @@ class StudentMic {
 
   static const _modelAsset = "assets/models/vosk-model-small-en-us-0.15.zip";
   static const _sampleRate = 16000;
+  // Written by our own Android crash-guard (SpeakRightApplication.kt) into
+  // the SAME folder Flutter's getApplicationDocumentsDirectory() resolves
+  // to on Android — see the comment on _tryLoadModel below.
+  static const _crashLogFileName = "last_native_crash.txt";
 
   final VoskFlutterPlugin _vosk = VoskFlutterPlugin.instance();
   Model? _model;
@@ -84,7 +90,26 @@ class StudentMic {
   /// thread, or the corrupted-cache hang described above) there would be
   /// nothing stopping the whole app from sitting on "Preparing…" forever
   /// with no error and no result.
+  ///
+  /// A real device kept hitting "model-create-timeout" even after (a) a
+  /// generous timeout increase and (b) the forced-fresh-reload self-heal
+  /// above — proving it's neither pure slowness nor a corrupted cache.
+  /// The one remaining explanation the vosk_flutter_2 Dart contract
+  /// itself points to (confirmed by reading its source): createModel()
+  /// only ever resolves via a native "model.created"/"model.error"
+  /// callback, with no timeout of its own — so if the native Android
+  /// side crashes on its background loader thread before calling back,
+  /// our own SpeakRightApplication.kt crash-guard (added earlier to stop
+  /// a *different* background-thread crash from killing the whole app)
+  /// quietly recovers the app and logs it — but that log only ever went
+  /// to this phone's logcat, which we have no way to pull remotely. It
+  /// now ALSO writes the crash to a small file in app storage, which we
+  /// read here right after a failure. This can't fix an underlying
+  /// native crash by itself, but it finally lets the real exception
+  /// (class + message) reach the screen instead of a bare "timeout" —
+  /// which is what we actually need to diagnose this for real.
   Future<bool> _tryLoadModel({required bool forceReload}) async {
+    await _clearNativeCrashLog();
     try {
       final modelPath = await ModelLoader()
           .loadFromAssets(_modelAsset, forceReload: forceReload)
@@ -103,7 +128,11 @@ class StudentMic {
       _recognizer = recognizer;
       return true;
     } catch (e) {
-      _initError = e.toString();
+      // Give a just-crashed background thread a brief moment to finish
+      // writing the crash file before we go looking for it.
+      await Future.delayed(const Duration(milliseconds: 300));
+      final crash = await _readNativeCrashLog();
+      _initError = (crash != null && crash.isNotEmpty) ? "$e || native crash: $crash" : e.toString();
       // Leave things in a clean state so the NEXT attempt (the forced
       // fresh reload, or a future session) starts from scratch instead of
       // being wedged on a half-built model/recognizer forever.
@@ -111,6 +140,38 @@ class StudentMic {
       _recognizer = null;
       return false;
     }
+  }
+
+  Future<File?> _crashLogFile() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      return File("${dir.path}/$_crashLogFileName");
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearNativeCrashLog() async {
+    try {
+      final file = await _crashLogFile();
+      if (file != null && await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Best-effort diagnostics only — never let this break model loading.
+    }
+  }
+
+  Future<String?> _readNativeCrashLog() async {
+    try {
+      final file = await _crashLogFile();
+      if (file != null && await file.exists()) {
+        return await file.readAsString();
+      }
+    } catch (_) {
+      // Best-effort diagnostics only.
+    }
+    return null;
   }
 
   /// Pre-warms the model/recognizer without starting to listen. Safe to
