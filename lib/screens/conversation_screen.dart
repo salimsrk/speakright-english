@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
@@ -29,6 +30,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ScoreResult? _lastResult;
   String? _error;
   bool _awaitingContinue = false;
+  // See the identical field in repeat_screen.dart: ticks once a second
+  // while _preparing is true so the button can show a live elapsed-time
+  // count instead of a static label that would look frozen during a
+  // multi-minute first-time voice-model load.
+  Timer? _prepTicker;
 
   @override
   void initState() {
@@ -38,6 +44,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   @override
   void dispose() {
+    _prepTicker?.cancel();
     TeacherTts.instance.stop();
     super.dispose();
   }
@@ -78,9 +85,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _preparing = needsPrep;
       _error = null;
     });
+    if (needsPrep) {
+      _prepTicker?.cancel();
+      _prepTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
     try {
       if (needsPrep) {
         final ok = await StudentMic.instance.init();
+        _prepTicker?.cancel();
         if (!mounted) return;
         setState(() => _preparing = false);
         if (!ok) {
@@ -108,6 +122,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _awaitingContinue = true;
       });
     } catch (e) {
+      _prepTicker?.cancel();
       if (e.toString().contains("mic-permission-denied") || e.toString().contains("unavailable")) {
         setState(() {
           _micUnsupported = true;
@@ -231,7 +246,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       FilledButton.icon(
                         onPressed: _listening ? null : () => _speakLine(currentTurn.line),
                         icon: const Icon(Icons.mic),
-                        label: Text(_preparing ? "Preparing…" : (_listening ? "Listening…" : "Speak your line")),
+                        label: Text(_preparing
+                            ? "Preparing… (${StudentMic.instance.loadingElapsed.inSeconds}s)"
+                            : (_listening ? "Listening…" : "Speak your line")),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
