@@ -16,6 +16,7 @@ class RepeatScreen extends StatefulWidget {
 class _RepeatScreenState extends State<RepeatScreen> {
   int _i = 0;
   bool _listening = false;
+  bool _preparing = false;
   ScoreResult? _result;
   String _heard = "";
   String? _error;
@@ -23,12 +24,32 @@ class _RepeatScreenState extends State<RepeatScreen> {
   Future<void> _hear() => TeacherTts.instance.speak(widget.topic.repeatLines[_i]);
 
   Future<void> _mic() async {
+    // The very first time the mic is used, the offline voice model still
+    // has to finish loading — that can take a while on some phones. Show
+    // a distinct "Preparing…" state for that instead of "Listening…", so
+    // it's clear the mic isn't actually recording yet (previously this
+    // looked identical to "Listening" and made it seem like the mic just
+    // wasn't picking up speech, when really it was still warming up).
+    final needsPrep = !StudentMic.instance.isReady;
     setState(() {
       _listening = true;
+      _preparing = needsPrep;
       _error = null;
       _result = null;
     });
     try {
+      if (needsPrep) {
+        final ok = await StudentMic.instance.init();
+        if (!mounted) return;
+        setState(() => _preparing = false);
+        if (!ok) {
+          setState(() {
+            _error = "Voice engine couldn't start: ${StudentMic.instance.initError ?? 'unknown error'}";
+            _listening = false;
+          });
+          return;
+        }
+      }
       final transcript = await StudentMic.instance.listenOnce();
       if (transcript.isEmpty) {
         setState(() {
@@ -54,6 +75,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
             ? "Please allow microphone access to practice speaking."
             : "Speaking practice couldn't start: $msg";
         _listening = false;
+        _preparing = false;
       });
     }
   }
@@ -160,7 +182,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
                     child: FilledButton.icon(
                       onPressed: _listening ? null : _mic,
                       icon: const Icon(Icons.mic),
-                      label: Text(_listening ? "Listening…" : "Your turn"),
+                      label: Text(_preparing ? "Preparing…" : (_listening ? "Listening…" : "Your turn")),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
