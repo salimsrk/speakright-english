@@ -37,15 +37,18 @@ jobs:
           rm -rf build_app/assets
           cp -r source/assets build_app/assets
 
-      - name: Download the offline Vosk speech model (~40MB, English, small)
+      # The study-themed app icon is committed to the repo as base64 TEXT
+      # (assets/icon/app_icon.png.b64) rather than a binary PNG, because
+      # every other file in this repo is edited through the GitHub web
+      # editor, which can only reliably push plain text. We decode it back
+      # into a real PNG here, right before flutter_launcher_icons reads it.
+      - name: Decode the app icon from base64
         run: |
-          mkdir -p build_app/assets/models
-          rm -f build_app/assets/models/README.txt
-          curl -L --fail --retry 3 -o build_app/assets/models/vosk-model-small-en-us-0.15.zip \
-            https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-          ls -lh build_app/assets/models/
+          base64 -d build_app/assets/icon/app_icon.png.b64 > build_app/assets/icon/app_icon.png
+          rm -f build_app/assets/icon/app_icon.png.b64
+          ls -lh build_app/assets/icon/
 
-      - name: Add microphone permission to AndroidManifest.xml
+      - name: Add microphone permission + speech-recognition query to AndroidManifest.xml
         run: |
           python3 - <<'PY'
           import re
@@ -56,6 +59,20 @@ jobs:
               content = re.sub(
                   r"(<manifest[^>]*>)",
                   r'\1\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
+                  content,
+                  count=1,
+              )
+          # Android 11+ hides other apps'/the OS's services behind package-
+          # visibility rules unless we declare we intend to query them. The
+          # speech_to_text plugin's own manifest already declares this too
+          # (and Gradle merges library manifests automatically), but we add
+          # it here as well as a harmless, explicit belt-and-braces copy —
+          # without it, on-device speech recognition can fail to be found
+          # on some phones even though everything else is set up correctly.
+          if "android.speech.RecognitionService" not in content:
+              content = re.sub(
+                  r"(<manifest[^>]*>)",
+                  r'\1\n    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" />\n        </intent>\n    </queries>',
                   content,
                   count=1,
               )
@@ -166,7 +183,7 @@ jobs:
               print("WARNING: MainActivity not found — skipping crash-guard Application class")
           PY
 
-      - name: Set minSdk/compileSdk (required by the offline voice package)
+      - name: Set minSdk/compileSdk
         run: |
           python3 - <<'PY'
           import glob, os
@@ -180,17 +197,19 @@ jobs:
           # extension, so a later assignment simply overrides the earlier
           # one. This guarantees these values end up correct no matter
           # what the generated file originally said.
-          #   - minSdk 30: vosk_flutter_2 (offline speech) requires it.
-          #   - compileSdk 36: vosk_flutter_2's own androidx dependencies
-          #     (fragment, window, activity, lifecycle, core, etc.) require
-          #     compiling against API 34+; Gradle's own error suggested 36.
+          #   - minSdk 23: now that vosk_flutter_2 is gone (it needed 30),
+          #     we can drop back to a much broader floor — Android 6.0+,
+          #     which covers virtually every real student phone, including
+          #     older/budget ones.
+          #   - compileSdk 36: several plugins' androidx dependencies need
+          #     compiling against a recent API; 36 is safely current.
           candidates = glob.glob("build_app/android/app/build.gradle*")
           for path in candidates:
               is_kts = path.endswith(".kts")
               snippet = (
-                  '\nandroid {\n    compileSdk = 36\n    defaultConfig {\n        minSdk = 30\n    }\n}\n'
+                  '\nandroid {\n    compileSdk = 36\n    defaultConfig {\n        minSdk = 23\n    }\n}\n'
                   if is_kts else
-                  '\nandroid {\n    compileSdkVersion 36\n    defaultConfig {\n        minSdkVersion 30\n    }\n}\n'
+                  '\nandroid {\n    compileSdkVersion 36\n    defaultConfig {\n        minSdkVersion 23\n    }\n}\n'
               )
               with open(path, "a", encoding="utf-8") as f:
                   f.write(snippet)
@@ -202,6 +221,10 @@ jobs:
       - name: flutter pub get
         working-directory: build_app
         run: flutter pub get
+
+      - name: Generate the study-themed app launcher icon
+        working-directory: build_app
+        run: dart run flutter_launcher_icons
 
       - name: Patch outdated Android config in older plugins (namespace + compileSdk)
         run: |
@@ -216,9 +239,9 @@ jobs:
               changes = []
 
               # 1) AGP8 requires every Android library module to declare a
-              #    namespace. Older plugins (like vosk_flutter_2, last
-              #    published Oct 2023) predate this and don't have one —
-              #    pull it from that same plugin's own AndroidManifest.xml.
+              #    namespace. Some older plugins predate this and don't
+              #    have one — pull it from that same plugin's own
+              #    AndroidManifest.xml.
               if "namespace" not in content:
                   manifest_path = os.path.join(os.path.dirname(gradle_path), "src", "main", "AndroidManifest.xml")
                   if os.path.exists(manifest_path):
@@ -231,8 +254,8 @@ jobs:
                           changes.append(f"namespace={package_name}")
 
               # 2) Some of these plugins hard-code an old compileSdk inside
-              #    their OWN build.gradle (vosk_flutter_2 uses the newer
-              #    "compileSdk 29" form, no "Version" suffix — matching only
+              #    their OWN build.gradle (some use the newer "compileSdk 29"
+              #    form, no "Version" suffix — matching only
               #    "compileSdkVersion" earlier silently missed it). Their
               #    androidx dependencies now require compiling against 34+,
               #    and bumping our app's compileSdk alone doesn't change
