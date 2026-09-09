@@ -24,6 +24,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final List<_Bubble> _log = [];
   final List<int> _scores = [];
   bool _listening = false;
+  bool _preparing = false;
   bool _micUnsupported = false;
   ScoreResult? _lastResult;
   String? _error;
@@ -67,11 +68,29 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _speakLine(String expected) async {
+    // See the identical comment in repeat_screen.dart: the very first mic
+    // use in a session may still need to finish loading the offline voice
+    // model, so show a distinct "Preparing…" state instead of overloading
+    // "Listening…" for both "still warming up" and "actually recording".
+    final needsPrep = !StudentMic.instance.isReady;
     setState(() {
       _listening = true;
+      _preparing = needsPrep;
       _error = null;
     });
     try {
+      if (needsPrep) {
+        final ok = await StudentMic.instance.init();
+        if (!mounted) return;
+        setState(() => _preparing = false);
+        if (!ok) {
+          setState(() {
+            _error = "Voice engine couldn't start: ${StudentMic.instance.initError ?? 'unknown error'}";
+            _listening = false;
+          });
+          return;
+        }
+      }
       final transcript = await StudentMic.instance.listenOnce();
       if (transcript.isEmpty) {
         setState(() {
@@ -105,6 +124,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         setState(() {
           _error = "Speaking practice couldn't start: ${e.toString()}";
           _listening = false;
+          _preparing = false;
         });
       }
     }
@@ -211,7 +231,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       FilledButton.icon(
                         onPressed: _listening ? null : () => _speakLine(currentTurn.line),
                         icon: const Icon(Icons.mic),
-                        label: Text(_listening ? "Listening…" : "Speak your line"),
+                        label: Text(_preparing ? "Preparing…" : (_listening ? "Listening…" : "Speak your line")),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
