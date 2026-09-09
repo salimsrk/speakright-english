@@ -32,34 +32,17 @@ class StudentMic {
   bool get isReady => _modelReady;
   String? get initError => _initError;
 
+  // How long the CURRENT (or most recent) model-loading attempt has been
+  // running. The UI polls this (once a second) to show a live "Preparing…
+  // (12s)" counter instead of a static label — see the comment on
+  // _tryLoadModel for why that matters this round.
+  final Stopwatch _loadStopwatch = Stopwatch();
+  Duration get loadingElapsed => _loadStopwatch.elapsed;
+
   /// Loads the (slow-ish, especially the very first time — unzipping a
   /// ~40MB model to the phone's storage) model + recognizer once and keeps
   /// them for the whole app session. Safe to call many times — it only
   /// does the real work the first time.
-  ///
-  /// THE REAL ROOT CAUSE (found after increasing timeouts alone did not
-  /// fix a real device's repeated "model-create-timeout"): the underlying
-  /// vosk_flutter_2 plugin's ModelLoader caches the unzipped model by
-  /// simply checking whether the destination folder already EXISTS on
-  /// disk — it has no way to tell a fully-extracted model apart from one
-  /// that was interrupted partway (app killed mid-unzip, an earlier
-  /// build's tighter timeout firing while extraction was still running,
-  /// etc). Once that happens, every future load — including after
-  /// installing a new APK version, since Android keeps app-private
-  /// storage across a plain "install over", not a full uninstall — sees
-  /// the folder, assumes it's complete, and hands the broken files
-  /// straight to the native model loader, which then hangs or fails the
-  /// exact same way forever. No amount of waiting longer fixes a load
-  /// that was never going to succeed. So this device very likely got its
-  /// model folder corrupted once, early in our testing, and has been
-  /// stuck replaying that same corruption on every attempt since.
-  ///
-  /// The fix: if a normal load fails, don't just give up — assume the
-  /// cached copy may be corrupt and force one completely fresh re-extract
-  /// (`forceReload: true`, which skips that unreliable "does the folder
-  /// exist" check and re-unzips for real) before finally giving up. This
-  /// self-heals automatically, with no need for the student to manually
-  /// uninstall the app.
   Future<bool> _ensureModelReady() async {
     if (_modelReady) return true;
     if (_initializing) {
@@ -71,54 +54,51 @@ class StudentMic {
     }
     _initializing = true;
     try {
-      _modelReady = await _tryLoadModel(forceReload: false);
-      if (!_modelReady) {
-        _modelReady = await _tryLoadModel(forceReload: true);
-      }
+      _modelReady = await _tryLoadModel();
     } finally {
       _initializing = false;
     }
     return _modelReady;
   }
 
-  /// One full attempt at unzip → createModel → createRecognizer. Every
-  /// native step is wrapped in its own timeout: on the very first "Your
-  /// turn" of a fresh install this whole chain has to run before the
-  /// student's 8s listening window even starts, and none of those native
-  /// calls are covered by that window's timer. If any single one of them
-  /// ever fails to call back to Dart (a native hiccup on a background
-  /// thread, or the corrupted-cache hang described above) there would be
-  /// nothing stopping the whole app from sitting on "Preparing…" forever
-  /// with no error and no result.
+  /// One full attempt at unzip → createModel → createRecognizer.
   ///
-  /// A real device kept hitting "model-create-timeout" even after (a) a
-  /// generous timeout increase and (b) the forced-fresh-reload self-heal
-  /// above — proving it's neither pure slowness nor a corrupted cache.
-  /// The one remaining explanation the vosk_flutter_2 Dart contract
-  /// itself points to (confirmed by reading its source): createModel()
-  /// only ever resolves via a native "model.created"/"model.error"
-  /// callback, with no timeout of its own — so if the native Android
-  /// side crashes on its background loader thread before calling back,
-  /// our own SpeakRightApplication.kt crash-guard (added earlier to stop
-  /// a *different* background-thread crash from killing the whole app)
-  /// quietly recovers the app and logs it — but that log only ever went
-  /// to this phone's logcat, which we have no way to pull remotely. It
-  /// now ALSO writes the crash to a small file in app storage, which we
-  /// read here right after a failure. This can't fix an underlying
-  /// native crash by itself, but it finally lets the real exception
-  /// (class + message) reach the screen instead of a bare "timeout" —
-  /// which is what we actually need to diagnose this for real.
-  Future<bool> _tryLoadModel({required bool forceReload}) async {
+  /// HISTORY, because this has taken several rounds to nail down: a real
+  /// device kept hitting "model-create-timeout" no matter what we tried —
+  /// first a generous timeout increase (ruled out pure slowness... or so
+  /// we thought), then a forced fresh re-extract in case the cached model
+  /// was corrupted (ruled that out too — identical failure either way),
+  /// then a crash-log capture in case a native crash was being silently
+  /// swallowed by our own crash-guard (ruled that out as well — no crash
+  /// was ever recorded, meaning createModel() is not crashing, it is
+  /// genuinely never calling back at all).
+  ///
+  /// That combination of results actually narrows things down a lot:
+  /// not corrupted data, not a caught native crash, not resolving even
+  /// after a full minute. The two explanations left standing are (a) this
+  /// device is simply far slower at loading the model into memory than a
+  /// minute can cover — real, but strange for a ~40MB "small" model — or
+  /// (b) createModel() never returns AT ALL on this device (a genuine
+  /// native deadlock/incompatibility), no matter how long we wait. There
+  /// is no way to tell these two apart without actually testing "does it
+  /// ever finish, given enough time" — so createModel's timeout below is
+  /// deliberately pushed way out (4 minutes) purely as that experiment.
+  /// If it succeeds within that window, we know it's (a) and can tune a
+  /// sane permanent timeout; if it still never completes, that proves (b)
+  /// and rules out timeout-tuning as a fix entirely, pointing instead at
+  /// swapping out the offline recognition engine for this device.
+  Future<bool> _tryLoadModel() async {
     await _clearNativeCrashLog();
+    _loadStopwatch
+      ..reset()
+      ..start();
     try {
-      final modelPath = await ModelLoader()
-          .loadFromAssets(_modelAsset, forceReload: forceReload)
-          .timeout(
-            Duration(seconds: forceReload ? 60 : 30),
+      final modelPath = await ModelLoader().loadFromAssets(_modelAsset, forceReload: true).timeout(
+            const Duration(seconds: 90),
             onTimeout: () => throw TimeoutException("model-extract-timeout"),
           );
       final model = await _vosk.createModel(modelPath).timeout(
-            Duration(seconds: forceReload ? 60 : 40),
+            const Duration(seconds: 240),
             onTimeout: () => throw TimeoutException("model-create-timeout"),
           );
       final recognizer = await _vosk
@@ -132,13 +112,17 @@ class StudentMic {
       // writing the crash file before we go looking for it.
       await Future.delayed(const Duration(milliseconds: 300));
       final crash = await _readNativeCrashLog();
-      _initError = (crash != null && crash.isNotEmpty) ? "$e || native crash: $crash" : e.toString();
-      // Leave things in a clean state so the NEXT attempt (the forced
-      // fresh reload, or a future session) starts from scratch instead of
-      // being wedged on a half-built model/recognizer forever.
+      final elapsed = _loadStopwatch.elapsed.inSeconds;
+      _initError = (crash != null && crash.isNotEmpty)
+          ? "$e (after ${elapsed}s) || native crash: $crash"
+          : "$e (after ${elapsed}s)";
+      // Leave things in a clean state so the next attempt starts from
+      // scratch instead of being wedged on a half-built model forever.
       _model = null;
       _recognizer = null;
       return false;
+    } finally {
+      _loadStopwatch.stop();
     }
   }
 
@@ -219,15 +203,14 @@ class StudentMic {
   /// that, try again" — instead of it being stuck with no response, which
   /// is the exact bug this whole file exists to prevent.
   ///
-  /// The generous 260s here (only ever spent once, on the very first mic
-  /// use of a session, if it needs to self-heal a corrupted model cache —
-  /// see the comment on _ensureModelReady) is sized to comfortably cover
-  /// the worst case of BOTH a full first attempt timing out on every step
-  /// AND the forced fresh-reload retry after it also needing its full
-  /// budget, so a real slow-but-working device is never cut off too early.
+  /// 380s here (only ever spent once, on the very first mic use of a
+  /// session — see _tryLoadModel's comment for why createModel alone now
+  /// gets up to 4 minutes as a one-time "does it ever finish" test)
+  /// comfortably covers the worst case of every per-step timeout above
+  /// firing in sequence, so a real answer is never cut off too early.
   Future<String> listenOnce({Duration timeout = const Duration(seconds: 8)}) {
     return _listenOnceInner(timeout).timeout(
-      timeout + const Duration(seconds: 260),
+      timeout + const Duration(seconds: 380),
       onTimeout: () => "",
     );
   }
