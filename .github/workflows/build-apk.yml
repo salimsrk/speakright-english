@@ -102,7 +102,7 @@ jobs:
         working-directory: build_app
         run: flutter pub get
 
-      - name: Fix missing "namespace" in older plugins (AGP8 compatibility)
+      - name: Patch outdated Android config in older plugins (namespace + compileSdk)
         run: |
           python3 - <<'PY'
           import re, glob, os
@@ -111,22 +111,38 @@ jobs:
           for gradle_path in gradle_files:
               with open(gradle_path, "r", encoding="utf-8") as f:
                   content = f.read()
-              if "namespace" in content:
-                  continue
-              manifest_path = os.path.join(os.path.dirname(gradle_path), "src", "main", "AndroidManifest.xml")
-              if not os.path.exists(manifest_path):
-                  continue
-              with open(manifest_path, "r", encoding="utf-8") as f:
-                  manifest = f.read()
-              m = re.search(r'package="([^"]+)"', manifest)
-              if not m:
-                  continue
-              package_name = m.group(1)
-              new_content = re.sub(r"(android\s*\{)", "\\1\n    namespace '%s'" % package_name, content, count=1)
-              if new_content != content:
+              original = content
+              changes = []
+
+              # 1) AGP8 requires every Android library module to declare a
+              #    namespace. Older plugins (like vosk_flutter_2, last
+              #    published Oct 2023) predate this and don't have one —
+              #    pull it from that same plugin's own AndroidManifest.xml.
+              if "namespace" not in content:
+                  manifest_path = os.path.join(os.path.dirname(gradle_path), "src", "main", "AndroidManifest.xml")
+                  if os.path.exists(manifest_path):
+                      with open(manifest_path, "r", encoding="utf-8") as f:
+                          manifest = f.read()
+                      m = re.search(r'package="([^"]+)"', manifest)
+                      if m:
+                          package_name = m.group(1)
+                          content = re.sub(r"(android\s*\{)", "\\1\n    namespace '%s'" % package_name, content, count=1)
+                          changes.append(f"namespace={package_name}")
+
+              # 2) Some of these plugins hard-code an old compileSdkVersion
+              #    (e.g. 33) inside their OWN build.gradle. Their androidx
+              #    dependencies now require compiling against 34+, and
+              #    bumping our app's compileSdk alone doesn't change this —
+              #    the plugin's own module needs it raised too.
+              m = re.search(r'compileSdkVersion\s+(\d+)', content)
+              if m and int(m.group(1)) < 36:
+                  content = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', content)
+                  changes.append(f"compileSdkVersion {m.group(1)}->36")
+
+              if content != original:
                   with open(gradle_path, "w", encoding="utf-8") as f:
-                      f.write(new_content)
-                  print(f"Patched namespace={package_name} into {gradle_path}")
+                      f.write(content)
+                  print(f"Patched {gradle_path}: {', '.join(changes)}")
           PY
 
       - name: Build release APK
