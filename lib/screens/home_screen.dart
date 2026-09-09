@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/content.dart';
 import '../models/topic.dart';
 import '../services/progress_store.dart';
+import '../services/student_mic.dart';
 import '../theme/app_theme.dart';
 import 'teach_screen.dart';
 
@@ -19,6 +20,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _refresh();
+    // Pre-warm the offline voice-recognition model in the background as
+    // soon as the app opens. It's a one-time ~40MB unzip-and-load the
+    // first time — doing it now (while the student is just browsing
+    // topics) means it's usually already done by the time they reach
+    // "Your turn", instead of that slow first-time load happening right
+    // when they're waiting to be heard.
+    // ignore: unawaited_futures
+    StudentMic.instance.init();
   }
 
   Future<void> _refresh() async {
