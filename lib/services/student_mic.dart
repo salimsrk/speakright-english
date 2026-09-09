@@ -52,17 +52,24 @@ class StudentMic {
     }
     _initializing = true;
     try {
+      // These timeouts used to be much tighter (30s/15s/10s). A real device
+      // reported a genuine "model-create-timeout" at 15s — this step loads
+      // the whole acoustic+language model into memory and can legitimately
+      // take much longer than a fast emulator on a slower or busier phone.
+      // We'd rather wait generously (this only ever happens once per app
+      // session, usually already finished in the background before the
+      // student even opens a lesson) than fail a real, working load.
       final modelPath = await ModelLoader().loadFromAssets(_modelAsset).timeout(
-            const Duration(seconds: 30),
+            const Duration(seconds: 45),
             onTimeout: () => throw TimeoutException("model-extract-timeout"),
           );
       _model = await _vosk.createModel(modelPath).timeout(
-            const Duration(seconds: 15),
+            const Duration(seconds: 75),
             onTimeout: () => throw TimeoutException("model-create-timeout"),
           );
       _recognizer = await _vosk
           .createRecognizer(model: _model!, sampleRate: _sampleRate)
-          .timeout(const Duration(seconds: 10), onTimeout: () => throw TimeoutException("recognizer-create-timeout"));
+          .timeout(const Duration(seconds: 30), onTimeout: () => throw TimeoutException("recognizer-create-timeout"));
       _modelReady = true;
     } catch (e) {
       _initError = e.toString();
@@ -106,7 +113,7 @@ class StudentMic {
     }
     final service = await _vosk
         .initSpeechService(_recognizer!)
-        .timeout(const Duration(seconds: 10), onTimeout: () => throw TimeoutException("speech-service-init-timeout"));
+        .timeout(const Duration(seconds: 20), onTimeout: () => throw TimeoutException("speech-service-init-timeout"));
     _speechService = service;
     return service;
   }
@@ -123,7 +130,7 @@ class StudentMic {
   /// this whole file exists to prevent.
   Future<String> listenOnce({Duration timeout = const Duration(seconds: 8)}) {
     return _listenOnceInner(timeout).timeout(
-      timeout + const Duration(seconds: 35),
+      timeout + const Duration(seconds: 130),
       onTimeout: () => "",
     );
   }
