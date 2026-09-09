@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:vosk_flutter_2/vosk_flutter.dart';
+import 'package:vosk_flutter_2/vosk_flutter_2.dart';
 
 /// Free, fully offline listener — uses a small Vosk speech-recognition
 /// model bundled inside the app itself (downloaded once at build time,
