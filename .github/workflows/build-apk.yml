@@ -115,6 +115,7 @@ jobs:
 
           import android.app.Application
           import android.util.Log
+          import java.io.File
 
           class SpeakRightApplication : Application() {
               override fun onCreate() {
@@ -125,6 +126,23 @@ jobs:
                           previousHandler?.uncaughtException(thread, throwable)
                       } else {
                           Log.e("SpeakRight", "Recovered from a background-thread crash on ${thread.name}", throwable)
+                          // We have no way to pull this phone's logcat remotely, so the
+                          // recovered exception above is otherwise invisible to us. Write
+                          // it to a small file in the app's own storage instead — Dart
+                          // reads this same file (via path_provider's
+                          // getApplicationDocumentsDirectory(), which resolves to this
+                          // exact filesDir on Android) right after a voice-model load
+                          // fails, so the real native exception (class + message +
+                          // stack trace) can finally show up in the on-screen error
+                          // instead of just a generic timeout.
+                          try {
+                              val detail = "${throwable.javaClass.name}: ${throwable.message}\\n" +
+                                  Log.getStackTraceString(throwable)
+                              File(filesDir, "last_native_crash.txt")
+                                  .writeText("thread=${thread.name}\\n$detail".take(4000))
+                          } catch (writeError: Throwable) {
+                              Log.e("SpeakRight", "Could not write crash log", writeError)
+                          }
                       }
                   }
               }
