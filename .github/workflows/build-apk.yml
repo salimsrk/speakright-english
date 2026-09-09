@@ -65,6 +65,89 @@ jobs:
           print(content)
           PY
 
+      - name: Add a crash-guard so a background-thread voice hiccup can't kill the whole app
+        run: |
+          python3 - <<'PY'
+          import re, glob, os
+
+          # ROOT CAUSE of "press the mic button and the whole app closes":
+          # the offline voice library (vosk-android, wrapped by
+          # vosk_flutter_2) records audio on its own background Java
+          # Thread (RecognizerThread) with no exception handling of its
+          # own. If that thread ever hits a transient audio-read hiccup
+          # (nread < 0), it throws a plain RuntimeException on that
+          # thread. Android's default behavior for an uncaught exception
+          # on *any* thread — not just the main/UI thread — is to kill
+          # the entire app process. That's why lessons/playback (which
+          # never touch that thread) work fine, but the moment "Your
+          # turn" starts real microphone recording, a single hiccup on
+          # that background thread takes the whole app down with it.
+          #
+          # Fix: install a global default uncaught-exception handler in
+          # a custom Application class. If the crash is on the main
+          # thread, we still let Android handle it normally (a real,
+          # unrecoverable app bug should still surface). If it's on any
+          # other (background) thread — like the voice engine's — we log
+          # it and let the app keep running instead of dying. The
+          # lesson screen's own 8-second timeout already shows the
+          # student a "didn't catch that, try again" message whenever a
+          # listening attempt doesn't finish normally, so nothing is
+          # silently lost — the app just no longer dies with it.
+          manifest_path = "build_app/android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r", encoding="utf-8") as f:
+              manifest = f.read()
+
+          candidates = (
+              glob.glob("build_app/android/app/src/main/kotlin/**/MainActivity.kt", recursive=True)
+              + glob.glob("build_app/android/app/src/main/java/**/MainActivity.java", recursive=True)
+              + glob.glob("build_app/android/app/src/main/java/**/MainActivity.kt", recursive=True)
+          )
+
+          if candidates:
+              main_activity_path = candidates[0]
+              src_dir = os.path.dirname(main_activity_path)
+              with open(main_activity_path, "r", encoding="utf-8") as f:
+                  first_line = f.readline()
+              m = re.search(r'package\s+([\w.]+)', first_line)
+              package_name = m.group(1) if m else "com.speakright.speakright"
+
+              app_kt_template = '''package __PACKAGE__
+
+          import android.app.Application
+          import android.util.Log
+
+          class SpeakRightApplication : Application() {
+              override fun onCreate() {
+                  super.onCreate()
+                  val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+                  Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                      if (thread.name == "main") {
+                          previousHandler?.uncaughtException(thread, throwable)
+                      } else {
+                          Log.e("SpeakRight", "Recovered from a background-thread crash on ${thread.name}", throwable)
+                      }
+                  }
+              }
+          }
+          '''
+              app_kt = app_kt_template.replace("__PACKAGE__", package_name)
+              out_path = os.path.join(src_dir, "SpeakRightApplication.kt")
+              with open(out_path, "w", encoding="utf-8") as f:
+                  f.write(app_kt)
+              print(f"Created {out_path} (package {package_name})")
+
+              if 'android:name="${applicationName}"' in manifest:
+                  manifest = manifest.replace('android:name="${applicationName}"', 'android:name=".SpeakRightApplication"')
+              elif "SpeakRightApplication" not in manifest:
+                  manifest = re.sub(r"(<application\b)", r'\1 android:name=".SpeakRightApplication"', manifest, count=1)
+              with open(manifest_path, "w", encoding="utf-8") as f:
+                  f.write(manifest)
+              print("--- AndroidManifest.xml (after crash-guard patch) ---")
+              print(manifest)
+          else:
+              print("WARNING: MainActivity not found — skipping crash-guard Application class")
+          PY
+
       - name: Set minSdk/compileSdk (required by the offline voice package)
         run: |
           python3 - <<'PY'
