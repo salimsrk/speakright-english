@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
@@ -20,6 +21,14 @@ class _RepeatScreenState extends State<RepeatScreen> {
   ScoreResult? _result;
   String _heard = "";
   String? _error;
+  // Ticks once a second while _preparing is true, purely so the button
+  // label below can show a live "Preparing… (12s)" count instead of a
+  // static word. On a phone where the one-time voice-model load can now
+  // legitimately take minutes (see student_mic.dart's _tryLoadModel for
+  // why), a static label is indistinguishable from a frozen app — the
+  // live counter is the only way for the student (and for us, from a
+  // screenshot) to tell it's still actually working.
+  Timer? _prepTicker;
 
   Future<void> _hear() => TeacherTts.instance.speak(widget.topic.repeatLines[_i]);
 
@@ -37,9 +46,16 @@ class _RepeatScreenState extends State<RepeatScreen> {
       _error = null;
       _result = null;
     });
+    if (needsPrep) {
+      _prepTicker?.cancel();
+      _prepTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
     try {
       if (needsPrep) {
         final ok = await StudentMic.instance.init();
+        _prepTicker?.cancel();
         if (!mounted) return;
         setState(() => _preparing = false);
         if (!ok) {
@@ -65,6 +81,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
         _listening = false;
       });
     } catch (e) {
+      _prepTicker?.cancel();
       setState(() {
         final msg = e.toString();
         // TEMPORARY: show the real underlying error instead of a generic
@@ -102,6 +119,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
 
   @override
   void dispose() {
+    _prepTicker?.cancel();
     TeacherTts.instance.stop();
     super.dispose();
   }
@@ -182,7 +200,9 @@ class _RepeatScreenState extends State<RepeatScreen> {
                     child: FilledButton.icon(
                       onPressed: _listening ? null : _mic,
                       icon: const Icon(Icons.mic),
-                      label: Text(_preparing ? "Preparing…" : (_listening ? "Listening…" : "Your turn")),
+                      label: Text(_preparing
+                          ? "Preparing… (${StudentMic.instance.loadingElapsed.inSeconds}s)"
+                          : (_listening ? "Listening…" : "Your turn")),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
