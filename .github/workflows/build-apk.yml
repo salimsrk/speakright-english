@@ -65,32 +65,35 @@ jobs:
           print(content)
           PY
 
-      - name: Set minSdkVersion to 30 (required by the offline voice package)
+      - name: Set minSdk/compileSdk (required by the offline voice package)
         run: |
           python3 - <<'PY'
           import glob, os
-          # Instead of trying to find-and-replace the auto-generated
-          # "minSdk = flutter.minSdkVersion" line (fragile — its exact
-          # wording/spacing changes between Flutter versions and the last
-          # regex attempt silently failed to match, leaving the default of
-          # 24 in place), we just APPEND a second "android { defaultConfig
-          # { ... } }" block at the end of the file. Gradle (both the
-          # Kotlin DSL .kts and classic Groovy .gradle forms) lets you call
-          # the android {} block more than once in the same file — each
-          # call re-enters the same extension, so a later assignment simply
-          # overrides the earlier one. This guarantees minSdk ends up as 30
-          # no matter what the generated file originally said.
+          # Instead of trying to find-and-replace the auto-generated lines
+          # (fragile — exact wording/spacing changes between Flutter
+          # versions and a regex attempt silently failed to match earlier),
+          # we just APPEND a second "android { ... }" block at the end of
+          # the file. Gradle (both the Kotlin DSL .kts and classic Groovy
+          # .gradle forms) lets you call the android {} block more than
+          # once in the same file — each call re-enters the same
+          # extension, so a later assignment simply overrides the earlier
+          # one. This guarantees these values end up correct no matter
+          # what the generated file originally said.
+          #   - minSdk 30: vosk_flutter_2 (offline speech) requires it.
+          #   - compileSdk 36: vosk_flutter_2's own androidx dependencies
+          #     (fragment, window, activity, lifecycle, core, etc.) require
+          #     compiling against API 34+; Gradle's own error suggested 36.
           candidates = glob.glob("build_app/android/app/build.gradle*")
           for path in candidates:
               is_kts = path.endswith(".kts")
               snippet = (
-                  '\nandroid {\n    defaultConfig {\n        minSdk = 30\n    }\n}\n'
+                  '\nandroid {\n    compileSdk = 36\n    defaultConfig {\n        minSdk = 30\n    }\n}\n'
                   if is_kts else
-                  '\nandroid {\n    defaultConfig {\n        minSdkVersion 30\n    }\n}\n'
+                  '\nandroid {\n    compileSdkVersion 36\n    defaultConfig {\n        minSdkVersion 30\n    }\n}\n'
               )
               with open(path, "a", encoding="utf-8") as f:
                   f.write(snippet)
-              print(f"Appended minSdk override to {path}")
+              print(f"Appended minSdk/compileSdk override to {path}")
               with open(path, "r", encoding="utf-8") as f:
                   print(f.read())
           PY
