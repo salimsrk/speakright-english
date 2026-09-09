@@ -129,15 +129,17 @@ jobs:
                           content = re.sub(r"(android\s*\{)", "\\1\n    namespace '%s'" % package_name, content, count=1)
                           changes.append(f"namespace={package_name}")
 
-              # 2) Some of these plugins hard-code an old compileSdkVersion
-              #    (e.g. 33) inside their OWN build.gradle. Their androidx
-              #    dependencies now require compiling against 34+, and
-              #    bumping our app's compileSdk alone doesn't change this —
-              #    the plugin's own module needs it raised too.
-              m = re.search(r'compileSdkVersion\s+(\d+)', content)
+              # 2) Some of these plugins hard-code an old compileSdk inside
+              #    their OWN build.gradle (vosk_flutter_2 uses the newer
+              #    "compileSdk 29" form, no "Version" suffix — matching only
+              #    "compileSdkVersion" earlier silently missed it). Their
+              #    androidx dependencies now require compiling against 34+,
+              #    and bumping our app's compileSdk alone doesn't change
+              #    this — the plugin's own module needs it raised too.
+              m = re.search(r'\bcompileSdk(?:Version)?\s+(\d+)', content)
               if m and int(m.group(1)) < 36:
-                  content = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', content)
-                  changes.append(f"compileSdkVersion {m.group(1)}->36")
+                  content = re.sub(r'\bcompileSdk(?:Version)?\s+\d+', 'compileSdk 36', content)
+                  changes.append(f"compileSdk {m.group(1)}->36")
 
               if content != original:
                   with open(gradle_path, "w", encoding="utf-8") as f:
