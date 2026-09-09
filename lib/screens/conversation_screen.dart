@@ -98,8 +98,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
           _awaitingContinue = true;
         });
       } else {
+        // TEMPORARY: show the real underlying error instead of a generic
+        // message, so we can see the exact native failure on this phone
+        // (there is no way to pull device logs remotely) and fix the real
+        // cause instead of guessing again.
         setState(() {
-          _error = "Speaking practice couldn't start. Try again.";
+          _error = "Speaking practice couldn't start: ${e.toString()}";
           _listening = false;
         });
       }
