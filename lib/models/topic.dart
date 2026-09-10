@@ -8,6 +8,17 @@ class ConversationTurn {
   const ConversationTurn({required this.isTeacher, required this.line});
 }
 
+/// A single free-practice challenge prompt. [sample] is an optional
+/// worked-example dialogue — straight from the course book — that the
+/// student can listen to for guidance before attempting the challenge
+/// themselves. It's empty for prompts that are descriptive/monologue
+/// tasks (e.g. "describe your city") rather than a two-person dialogue.
+class PracticePrompt {
+  final String text;
+  final List<ConversationTurn> sample;
+  const PracticePrompt({required this.text, this.sample = const []});
+}
+
 class Topic {
   final String id;
   final String emoji;
@@ -18,7 +29,7 @@ class Topic {
   final TopicType type;
   final List<ConversationTurn> conversation;
   final String passage;
-  final List<String> prompts;
+  final List<PracticePrompt> prompts;
 
   const Topic({
     required this.id,
