@@ -10,7 +10,8 @@ import 'results_screen.dart';
 class _Bubble {
   final bool isTeacher;
   final String text;
-  _Bubble(this.isTeacher, this.text);
+  final String tamil;
+  _Bubble(this.isTeacher, this.text, [this.tamil = ""]);
 }
 
 class ConversationScreen extends StatefulWidget {
@@ -61,7 +62,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
     final turn = conv[_i];
     if (turn.isTeacher) {
-      setState(() => _log.add(_Bubble(true, turn.line)));
+      setState(() => _log.add(_Bubble(true, turn.line, turn.tamil)));
       await TeacherTts.instance.speak(turn.line);
       _i++;
       if (mounted) _step();
@@ -212,11 +213,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10)]
                             : null,
                       ),
-                      child: Text(b.text,
-                          style: TextStyle(
-                              color: b.isTeacher ? AppColors.ink : Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15)),
+                      child: Column(
+                        crossAxisAlignment: b.isTeacher ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                        children: [
+                          Text(b.text,
+                              style: TextStyle(
+                                  color: b.isTeacher ? AppColors.ink : Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15)),
+                          tamilMeaning(b.tamil, color: b.isTeacher ? AppColors.inkSoft : Colors.white70),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -231,14 +238,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: cardDecoration(),
-                      child: RichText(
-                        text: TextSpan(
-                          style: const TextStyle(color: AppColors.ink, fontSize: 14.5),
-                          children: [
-                            const TextSpan(text: "Your line: "),
-                            TextSpan(text: currentTurn.line, style: const TextStyle(fontWeight: FontWeight.w800)),
-                          ],
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              style: const TextStyle(color: AppColors.ink, fontSize: 14.5),
+                              children: [
+                                const TextSpan(text: "Your line: "),
+                                TextSpan(text: currentTurn.line, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              ],
+                            ),
+                          ),
+                          tamilMeaning(currentTurn.tamil),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),

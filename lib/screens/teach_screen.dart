@@ -9,7 +9,8 @@ import 'free_practice_screen.dart';
 class _DemoBubble {
   final bool isTeacher;
   final String text;
-  const _DemoBubble(this.isTeacher, this.text);
+  final String tamil;
+  const _DemoBubble(this.isTeacher, this.text, [this.tamil = ""]);
 }
 
 class TeachScreen extends StatefulWidget {
@@ -89,7 +90,7 @@ class _TeachScreenState extends State<TeachScreen> {
       _demoIndex = i;
       _demoPlaying = true;
       _demoPaused = false;
-      if (_demoLog.length <= i) _demoLog.add(_DemoBubble(turn.isTeacher, turn.line));
+      if (_demoLog.length <= i) _demoLog.add(_DemoBubble(turn.isTeacher, turn.line, turn.tamil));
     });
     await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
     if (!mounted || _demoPaused) return;
@@ -354,6 +355,7 @@ class _TeachScreenState extends State<TeachScreen> {
             Text(b.text,
                 style: TextStyle(
                     color: b.isTeacher ? AppColors.ink : Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+            tamilMeaning(b.tamil, color: b.isTeacher ? AppColors.inkSoft : Colors.white70),
           ],
         ),
       ),

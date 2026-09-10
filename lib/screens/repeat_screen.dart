@@ -177,7 +177,13 @@ class _RepeatScreenState extends State<RepeatScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: cardDecoration(),
-                      child: Text(line, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(line, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                          tamilMeaning(t.repeatLineTamilAt(_i)),
+                        ],
+                      ),
                     ),
                   ),
                 ],

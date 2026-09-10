@@ -9,7 +9,8 @@ import 'results_screen.dart';
 class _DemoBubble {
   final bool isTeacher;
   final String text;
-  const _DemoBubble(this.isTeacher, this.text);
+  final String tamil;
+  const _DemoBubble(this.isTeacher, this.text, [this.tamil = ""]);
 }
 
 class FreePracticeScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
     }
     final turn = sample[i];
     setState(() {
-      if (_sampleLog.length <= i) _sampleLog.add(_DemoBubble(turn.isTeacher, turn.line));
+      if (_sampleLog.length <= i) _sampleLog.add(_DemoBubble(turn.isTeacher, turn.line, turn.tamil));
     });
     await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
     if (!mounted || !_samplePlaying) return; // stopped while this line was playing
@@ -186,7 +187,13 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: cardDecoration(),
-                      child: Text(prompt, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.4)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(prompt, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.4)),
+                          tamilMeaning(promptObj.tamil, topGap: 6),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -247,9 +254,22 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
                         for (final bubble in _sampleLog)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              "${bubble.isTeacher ? '🧑‍🏫' : '🙂'} ${bubble.text}",
-                              style: const TextStyle(fontSize: 13.5, height: 1.35),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${bubble.isTeacher ? '🧑‍🏫' : '🙂'} ${bubble.text}",
+                                  style: const TextStyle(fontSize: 13.5, height: 1.35),
+                                ),
+                                if (bubble.tamil.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 20, top: 1),
+                                    child: Text(
+                                      bubble.tamil,
+                                      style: const TextStyle(fontSize: 12.5, height: 1.3, color: AppColors.inkSoft),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                       ],

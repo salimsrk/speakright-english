@@ -38,6 +38,26 @@ BoxDecoration cardDecoration({Color? borderTop}) => BoxDecoration(
       ],
     );
 
+/// Renders the Tamil meaning of an English line, shown right under it
+/// wherever the student sees English on screen (teach, repeat, conversation,
+/// reading, free practice). Returns an empty widget when there's no
+/// translation yet, so callers can use it unconditionally.
+Widget tamilMeaning(String tamil, {Color? color, double topGap = 4}) {
+  if (tamil.isEmpty) return const SizedBox.shrink();
+  return Padding(
+    padding: EdgeInsets.only(top: topGap),
+    child: Text(
+      tamil,
+      style: TextStyle(
+        fontSize: 13.5,
+        height: 1.4,
+        color: color ?? AppColors.inkSoft,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
+}
+
 Color feedbackColor(String verdict) {
   switch (verdict) {
     case "excellent":

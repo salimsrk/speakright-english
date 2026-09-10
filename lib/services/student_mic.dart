@@ -39,6 +39,19 @@ class StudentMic {
   bool _initializing = false;
   String? _initError;
 
+  // Which recognizer locale we ended up using. Students here speak
+  // Tamil-accented English, and the teacher's demo audio is now deliberately
+  // played in an Indian-English voice too (see teacher_tts.dart) — but none
+  // of that helps scores if the recognizer itself is listening for American
+  // English. Android's speech_to_text defaults to the phone's system
+  // locale when none is given, which on plenty of devices is en_US even
+  // though the phone is set up and used in India, and that mismatch was
+  // exactly why repeated answers were scoring lower than they should.
+  // We resolve the best available Indian-English locale once, during
+  // _ensureReady(), and pass it explicitly to every listen() call below.
+  String? _localeId;
+  String? get activeLocaleId => _localeId;
+
   // If a listenOnce() call is currently active, this lets the persistent
   // onStatus/onError callbacks (registered once, in _ensureReady) tell it
   // "the platform says listening has ended" even when no finalResult ever
@@ -85,6 +98,8 @@ class StudentMic {
       _available = ok;
       if (!ok) {
         _initError = "speech-recognition-unavailable (after ${_loadStopwatch.elapsed.inSeconds}s)";
+      } else {
+        await _resolveIndianLocale();
       }
     } catch (e) {
       _available = false;
@@ -100,6 +115,30 @@ class StudentMic {
   /// eagerly (e.g. on the Home screen) so it's already ready by the time
   /// the student taps "Your turn".
   Future<bool> init() => _ensureReady();
+
+  /// Picks the best available Indian-English recognizer locale installed
+  /// on this phone, preferring en_IN, then en_GB, then plain en_US as a
+  /// last resort. If the phone genuinely has none of these offline packs,
+  /// we leave localeId unset and the recognizer falls back to whatever the
+  /// platform default is — same "subject to device capability" caveat as
+  /// everywhere else offline on this app.
+  Future<void> _resolveIndianLocale() async {
+    try {
+      final locales = await _speech.locales();
+      String normalize(String id) => id.replaceAll('-', '_').toLowerCase();
+      for (final candidate in const ["en_in", "en_gb", "en_us"]) {
+        for (final l in locales) {
+          if (normalize(l.localeId) == candidate) {
+            _localeId = l.localeId;
+            return;
+          }
+        }
+      }
+    } catch (_) {
+      // locales() isn't supported, or failed — listen() will just use the
+      // platform's own default locale.
+    }
+  }
 
   /// Listens for a single utterance and returns the transcript. Guaranteed
   /// to finish (with "" if nothing usable was heard) within roughly
@@ -150,6 +189,10 @@ class StudentMic {
         // anywhere. If the phone has no offline pack installed this fails
         // fast (via onError above) rather than silently going online.
         onDevice: true,
+        // Recognize against Indian English when the phone has that pack
+        // installed (resolved once in _resolveIndianLocale) — otherwise
+        // omit it and let the platform use its own default locale.
+        localeId: _localeId,
       );
     } catch (e) {
       finish("");

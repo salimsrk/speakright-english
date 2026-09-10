@@ -96,7 +96,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
               child: Container(
                 padding: const EdgeInsets.all(18),
                 decoration: cardDecoration(),
-                child: Text(t.passage, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.7)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.passage, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.7)),
+                    tamilMeaning(t.passageTamil, topGap: 10),
+                  ],
+                ),
               ),
             ),
             Padding(
