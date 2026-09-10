@@ -75,12 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Center(
-                  child: Text("Module 1 · Conversation — 10 topics",
-                      style: TextStyle(color: AppColors.inkSoft, fontSize: 12.5)),
+                  child: Text("Module 1 · Conversation — ${topics.length} topics",
+                      style: const TextStyle(color: AppColors.inkSoft, fontSize: 12.5)),
                 ),
               ),
             ),
