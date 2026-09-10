@@ -6,6 +6,12 @@ import '../services/scoring.dart';
 import '../theme/app_theme.dart';
 import 'results_screen.dart';
 
+class _DemoBubble {
+  final bool isTeacher;
+  final String text;
+  const _DemoBubble(this.isTeacher, this.text);
+}
+
 class FreePracticeScreen extends StatefulWidget {
   final Topic topic;
   const FreePracticeScreen({super.key, required this.topic});
@@ -20,6 +26,47 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
   String _heard = "";
   String? _error;
   final List<int> _scores = [];
+
+  // --- Sample-answer playback (the book's worked-example dialogue, when
+  // one exists for this challenge) ---
+  final List<_DemoBubble> _sampleLog = [];
+  bool _samplePlaying = false;
+  bool _sampleFinished = false;
+
+  Future<void> _playSampleFrom(int i) async {
+    final sample = widget.topic.prompts[_i].sample;
+    if (i >= sample.length) {
+      if (!mounted) return;
+      setState(() {
+        _sampleFinished = true;
+        _samplePlaying = false;
+      });
+      return;
+    }
+    final turn = sample[i];
+    setState(() {
+      if (_sampleLog.length <= i) _sampleLog.add(_DemoBubble(turn.isTeacher, turn.line));
+    });
+    await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
+    if (!mounted || !_samplePlaying) return; // stopped while this line was playing
+    _playSampleFrom(i + 1);
+  }
+
+  void _playSample() {
+    setState(() {
+      _sampleLog.clear();
+      _sampleFinished = false;
+      _samplePlaying = true;
+    });
+    _playSampleFrom(0);
+  }
+
+  void _stopSample() {
+    setState(() {
+      _samplePlaying = false;
+    });
+    TeacherTts.instance.stop();
+  }
 
   Future<void> _mic() async {
     setState(() {
@@ -64,6 +111,9 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
         _result = null;
         _heard = "";
         _error = null;
+        _sampleLog.clear();
+        _samplePlaying = false;
+        _sampleFinished = false;
       });
     }
   }
@@ -77,7 +127,9 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
   @override
   Widget build(BuildContext context) {
     final t = widget.topic;
-    final prompt = t.prompts[_i];
+    final promptObj = t.prompts[_i];
+    final prompt = promptObj.text;
+    final hasSample = promptObj.sample.isNotEmpty;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -164,6 +216,47 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
                 ],
               ),
             ),
+            if (hasSample) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _samplePlaying ? _stopSample : _playSample,
+                    icon: Icon(_samplePlaying ? Icons.stop : Icons.headphones),
+                    label: Text(_samplePlaying
+                        ? "Stop sample"
+                        : (_sampleFinished ? "Play sample again" : "Listen to a sample answer")),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      foregroundColor: t.color,
+                      side: BorderSide(color: t.color),
+                    ),
+                  ),
+                ),
+              ),
+              if (_sampleLog.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: cardDecoration(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final bubble in _sampleLog)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              "${bubble.isTeacher ? '🧑‍🏫' : '🙂'} ${bubble.text}",
+                              style: const TextStyle(fontSize: 13.5, height: 1.35),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
