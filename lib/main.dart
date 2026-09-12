@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
-import 'screens/home_screen.dart';
+import 'screens/module_select_screen.dart';
 
 void main() {
   runApp(const SpeakRightApp());
@@ -15,7 +15,7 @@ class SpeakRightApp extends StatelessWidget {
       title: "SpeakRight English",
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const HomeScreen(),
+      home: const ModuleSelectScreen(),
     );
   }
 }

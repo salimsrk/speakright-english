@@ -113,10 +113,18 @@ class _Header extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Text("🗣️", style: TextStyle(fontSize: 24)),
-              SizedBox(width: 8),
-              Text("SpeakRight",
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                style: IconButton.styleFrom(backgroundColor: Colors.white24, shape: const CircleBorder()),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              ),
+              const SizedBox(width: 10),
+              const Text("🗣️", style: TextStyle(fontSize: 24)),
+              const SizedBox(width: 8),
+              const Text("SpeakRight",
                   style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
             ],
           ),
