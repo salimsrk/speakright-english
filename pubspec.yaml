@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/app_icon.png
+    - assets/module2/bottle_spirit.png
 
 # Study-themed app icon (graduation cap) so the app reads clearly as an
 # English-learning app for school/college students. Generated into every
