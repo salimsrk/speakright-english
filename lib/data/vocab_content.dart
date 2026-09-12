@@ -996,9 +996,9 @@ final List<PuzzleReference> puzzleReferences = const [
     title: "IX. The Bottle Puzzle — One Word, Many Meanings",
     tamilTitle: "IX. பாட்டில் புதிர் — ஒரே வார்த்தை, பல அர்த்தங்கள்",
     description:
-        "The book's original puzzle here was a hand-drawn picture with no printed answer anywhere in the text, so here's a new picture puzzle in the same spirit instead. This bottle's label says \"SPIRIT\". In English, that one word can mean more than one thing. Look at the label, then think: what does \"spirit\" mean here — and what else can it mean?",
+        "Take a close look at this bottle. Its label says \"SPIRIT\". In English, this one small word can mean more than one thing. Study the label, then think: what does \"spirit\" mean here — and what else can it mean?",
     tamilDescription:
-        "இந்தப் புதிரின் மூல வடிவம் புத்தகத்தில் ஒரு படமாக மட்டும் இருந்தது, அதற்கான பதில் புத்தகத்தில் எங்கும் இல்லை — அதனால் அதே உணர்வில் ஒரு புதிய படப் புதிர் இங்கே. இந்த பாட்டிலின் லேபிளில் \"SPIRIT\" என்று எழுதியிருக்கிறது. ஆங்கிலத்தில் இந்த ஒரே வார்த்தைக்கு ஒன்றுக்கு மேற்பட்ட அர்த்தங்கள் உண்டு. லேபிளைப் பார்த்து யோசியுங்கள்: இங்கே \"spirit\" என்றால் என்ன அர்த்தம் — வேறு என்ன அர்த்தமும் இருக்கலாம்?",
+        "இந்த பாட்டிலை கவனமாகப் பாருங்கள். அதன் லேபிளில் \"SPIRIT\" என்று எழுதியிருக்கிறது. ஆங்கிலத்தில் இந்த ஒரே சிறிய வார்த்தைக்கு ஒன்றுக்கு மேற்பட்ட அர்த்தங்கள் உண்டு. லேபிளை கவனித்து யோசியுங்கள்: இங்கே \"spirit\" என்றால் என்ன அர்த்தம் — வேறு என்ன அர்த்தமும் இருக்கலாம்?",
     solution:
         "\"Spirit\" has two common meanings: 1) A strong alcoholic drink (like whisky, rum or brandy) — which is what this bottle holds. 2) A person's soul, mood or inner energy — as in \"high spirits\" or \"the human spirit\". One word, two very different meanings — English has many words like this!",
     tamilSolution:
@@ -1009,9 +1009,9 @@ final List<PuzzleReference> puzzleReferences = const [
     title: "X. Can You Find All 26 Letters?",
     tamilTitle: "X. 26 எழுத்துகளும் கண்டுபிடிக்க முடியுமா?",
     description:
-        "The book's original puzzle here asked you to fit all 26 letters of the alphabet into a crossword grid — a picture with no printed answer anywhere in the text. Here's something just as fun you can try anywhere: can you think of a sentence that uses every single letter from A to Z at least once? English calls this a \"pangram\".",
+        "Here's something fun to try anywhere, anytime: can you think of a sentence that uses every single letter of the alphabet, from A to Z, at least once? English calls a sentence like this a \"pangram\".",
     tamilDescription:
-        "இந்தப் புதிரின் மூல வடிவம் 26 எழுத்துகளையும் ஒரு குறுக்கெழுத்துக் கட்டத்தில் பொருத்தச் சொன்னது — அதற்கான பதிலும் புத்தகத்தில் இல்லை. அதே போன்ற வேடிக்கையான ஒன்று: A முதல் Z வரை உள்ள ஒவ்வொரு எழுத்தும் குறைந்தது ஒரு முறையாவது வரும்படி ஒரு வாக்கியத்தை யோசிக்க முடியுமா? ஆங்கிலத்தில் இதற்கு \"pangram\" என்று பெயர்.",
+        "எங்கு வேண்டுமானாலும், எப்போது வேண்டுமானாலும் முயற்சி செய்யக்கூடிய ஒரு வேடிக்கையான விஷயம் இதோ: A முதல் Z வரை உள்ள ஒவ்வொரு எழுத்தும் குறைந்தது ஒரு முறையாவது வரும்படி ஒரு வாக்கியத்தை யோசிக்க முடியுமா? ஆங்கிலத்தில் இதற்கு \"pangram\" என்று பெயர்.",
     solution:
         "Here's a famous example: \"The quick brown fox jumps over the lazy dog.\" Check it yourself — it uses every letter from A to Z, all in one sentence!",
     tamilSolution:
