@@ -993,23 +993,28 @@ final List<PuzzleReference> puzzleReferences = const [
     tamilSolution: "CROSS மற்றும் WORDS — சேர்த்தால் \"CROSSWORDS\" — நடுவே உள்ள 'O' எழுத்தைப் பகிர்ந்துகொள்கின்றன.",
   ),
   PuzzleReference(
-    title: "IX. The Bottle Puzzle",
-    tamilTitle: "IX. பாட்டில் புதிர்",
+    title: "IX. The Bottle Puzzle — One Word, Many Meanings",
+    tamilTitle: "IX. பாட்டில் புதிர் — ஒரே வார்த்தை, பல அர்த்தங்கள்",
     description:
-        "A picture riddle from the book: \"The contents of the bottle are not what you might think according to the label. What does it really contain?\" The puzzle is a hand-drawn picture in the original book with no printed answer anywhere in the text.",
+        "The book's original puzzle here was a hand-drawn picture with no printed answer anywhere in the text, so here's a new picture puzzle in the same spirit instead. This bottle's label says \"SPIRIT\". In English, that one word can mean more than one thing. Look at the label, then think: what does \"spirit\" mean here — and what else can it mean?",
     tamilDescription:
-        "இது புத்தகத்தில் உள்ள ஒரு படப் புதிர்: \"லேபிளில் நினைப்பது போல் பாட்டிலின் உள்ளடக்கம் இல்லை. அதில் உண்மையில் என்ன இருக்கிறது?\" இந்தப் புதிருக்கான பதில் புத்தகத்தில் எங்கும் அச்சிடப்படவில்லை.",
-    solution: null,
-    tamilSolution: "இதற்கான உறுதியான பதில் மூலப் புத்தகத்தில் கிடைக்கவில்லை.",
+        "இந்தப் புதிரின் மூல வடிவம் புத்தகத்தில் ஒரு படமாக மட்டும் இருந்தது, அதற்கான பதில் புத்தகத்தில் எங்கும் இல்லை — அதனால் அதே உணர்வில் ஒரு புதிய படப் புதிர் இங்கே. இந்த பாட்டிலின் லேபிளில் \"SPIRIT\" என்று எழுதியிருக்கிறது. ஆங்கிலத்தில் இந்த ஒரே வார்த்தைக்கு ஒன்றுக்கு மேற்பட்ட அர்த்தங்கள் உண்டு. லேபிளைப் பார்த்து யோசியுங்கள்: இங்கே \"spirit\" என்றால் என்ன அர்த்தம் — வேறு என்ன அர்த்தமும் இருக்கலாம்?",
+    solution:
+        "\"Spirit\" has two common meanings: 1) A strong alcoholic drink (like whisky, rum or brandy) — which is what this bottle holds. 2) A person's soul, mood or inner energy — as in \"high spirits\" or \"the human spirit\". One word, two very different meanings — English has many words like this!",
+    tamilSolution:
+        "\"Spirit\" என்ற வார்த்தைக்கு இரண்டு பொதுவான அர்த்தங்கள் உண்டு: 1) ஒரு கடுமையான மதுபானம் (விஸ்கி, ரம் போன்றவை) — இந்த பாட்டிலில் இருப்பது இதுதான். 2) ஒருவரின் ஆன்மா, மனநிலை அல்லது உள் ஆற்றல் — \"high spirits\" (உற்சாகம்) போன்ற பயன்பாட்டில். ஒரே வார்த்தை, முற்றிலும் வேறுபட்ட இரண்டு அர்த்தங்கள் — ஆங்கிலத்தில் இது போன்ற பல வார்த்தைகள் உண்டு!",
+    imageAsset: "assets/module2/bottle_spirit.png",
   ),
   PuzzleReference(
-    title: "X. The 26-Letter Crossword",
-    tamilTitle: "X. 26 எழுத்து குறுக்கெழுத்துப் புதிர்",
+    title: "X. Can You Find All 26 Letters?",
+    tamilTitle: "X. 26 எழுத்துகளும் கண்டுபிடிக்க முடியுமா?",
     description:
-        "Using all 26 letters of the alphabet exactly once, complete the crossword grid shown in the book. The grid is a picture in the original book with no printed answer anywhere in the text.",
+        "The book's original puzzle here asked you to fit all 26 letters of the alphabet into a crossword grid — a picture with no printed answer anywhere in the text. Here's something just as fun you can try anywhere: can you think of a sentence that uses every single letter from A to Z at least once? English calls this a \"pangram\".",
     tamilDescription:
-        "அகரவரிசையின் 26 எழுத்துகளையும் தலா ஒருமுறை பயன்படுத்தி, புத்தகத்தில் உள்ள குறுக்கெழுத்துக் கட்டத்தை நிரப்பவும். இந்தக் கட்டத்திற்கான பதில் புத்தகத்தில் எங்கும் அச்சிடப்படவில்லை.",
-    solution: null,
-    tamilSolution: "இதற்கான உறுதியான பதில் மூலப் புத்தகத்தில் கிடைக்கவில்லை.",
+        "இந்தப் புதிரின் மூல வடிவம் 26 எழுத்துகளையும் ஒரு குறுக்கெழுத்துக் கட்டத்தில் பொருத்தச் சொன்னது — அதற்கான பதிலும் புத்தகத்தில் இல்லை. அதே போன்ற வேடிக்கையான ஒன்று: A முதல் Z வரை உள்ள ஒவ்வொரு எழுத்தும் குறைந்தது ஒரு முறையாவது வரும்படி ஒரு வாக்கியத்தை யோசிக்க முடியுமா? ஆங்கிலத்தில் இதற்கு \"pangram\" என்று பெயர்.",
+    solution:
+        "Here's a famous example: \"The quick brown fox jumps over the lazy dog.\" Check it yourself — it uses every letter from A to Z, all in one sentence!",
+    tamilSolution:
+        "இதோ ஒரு பிரபலமான உதாரணம்: \"The quick brown fox jumps over the lazy dog.\" இதை நீங்களே சரிபார்க்கலாம் — A முதல் Z வரை உள்ள எல்லா எழுத்துகளும் இந்த ஒரே வாக்கியத்தில் வந்திருக்கும்!",
   ),
 ];

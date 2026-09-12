@@ -61,6 +61,13 @@ class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
                       children: [
                         Text(p.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink)),
                         Text(p.tamilTitle, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
+                        if (p.imageAsset != null) ...[
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(p.imageAsset!, height: 220, fit: BoxFit.contain),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Text(p.description, style: const TextStyle(fontSize: 13.5, height: 1.4)),
                         tamilMeaning(p.tamilDescription, topGap: 6),

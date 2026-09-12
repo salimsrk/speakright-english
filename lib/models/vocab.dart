@@ -127,6 +127,9 @@ class PuzzleReference {
   final String tamilDescription;
   final String? solution;
   final String? tamilSolution;
+  /// Optional bundled illustration (e.g. the bottle-puzzle picture),
+  /// shown above the description when present.
+  final String? imageAsset;
   const PuzzleReference({
     required this.title,
     required this.tamilTitle,
@@ -134,5 +137,6 @@ class PuzzleReference {
     required this.tamilDescription,
     this.solution,
     this.tamilSolution,
+    this.imageAsset,
   });
 }
