@@ -53,6 +53,16 @@ jobs:
           python3 assets/icon/generate_icon.py
           ls -lh assets/icon/
 
+      # Same script-generated approach as the app icon above, and for the
+      # same reason: no working git/gh CLI here to commit a binary PNG
+      # reliably, so we draw it fresh on every build instead.
+      - name: Generate the Module 2 bottle-puzzle illustration
+        working-directory: build_app
+        run: |
+          pip install --quiet --break-system-packages pillow
+          python3 assets/module2/generate_bottle_image.py
+          ls -lh assets/module2/
+
       - name: Add microphone permission + speech-recognition query to AndroidManifest.xml
         run: |
           python3 - <<'PY'
