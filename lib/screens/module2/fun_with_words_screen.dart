@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
 import '../../theme/app_theme.dart';
 import 'jumbled_words_screen.dart';
+import 'matching_quiz_screen.dart';
 import 'mcq_screen.dart';
 import 'odd_one_out_screen.dart';
 import 'puzzle_reference_screen.dart';
 import 'theme_quiz_screen.dart';
-import 'word_group_screen.dart';
 
 /// Hub screen for the book's "Fun with Words" section — links out to
 /// every puzzle type: odd-one-out, jumbled words, synonym/antonym MCQs,
@@ -58,19 +58,19 @@ class FunWithWordsScreen extends StatelessWidget {
         emoji: "🏏",
         title: "Word → Game(s)",
         subtitle: "${gamesMatching.pairs.length} items",
-        builder: (_) => WordGroupScreen(group: gamesMatching),
+        builder: (_) => MatchingQuizScreen(title: "Word → Game(s)", emoji: "🏏", group: gamesMatching),
       ),
       _PuzzleTile(
         emoji: "💱",
         title: "Country ↔ Currency",
         subtitle: "${countryCurrencyMatching.pairs.length} items",
-        builder: (_) => WordGroupScreen(group: countryCurrencyMatching),
+        builder: (_) => MatchingQuizScreen(title: "Country ↔ Currency", emoji: "💱", group: countryCurrencyMatching),
       ),
       _PuzzleTile(
         emoji: "🐘",
         title: "Group A ↔ Group B",
         subtitle: "${animalAssociationMatching.pairs.length} items",
-        builder: (_) => WordGroupScreen(group: animalAssociationMatching),
+        builder: (_) => MatchingQuizScreen(title: "Group A ↔ Group B", emoji: "🐘", group: animalAssociationMatching),
       ),
       _PuzzleTile(
         emoji: "🍋",

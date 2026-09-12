@@ -1,21 +1,23 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../data/vocab_content.dart';
+import '../../models/vocab.dart';
 import '../../theme/app_theme.dart';
 
-/// The "LEMONADE" vocabulary test — a set of clue words that all connect
-/// to one hidden theme/answer (e.g. "Monitors, Motherboard, Software,
-/// Floppy" → Computer). The student picks which answer they think fits
-/// before finding out whether they're right, instead of the answer being
-/// shown right away.
-class ThemeQuizScreen extends StatefulWidget {
-  const ThemeQuizScreen({super.key});
+/// Turns a matching-style WordGroup (word → game, country → currency,
+/// Group A → Group B) into an interactive quiz: pick the answer you think
+/// is right, then see whether you were correct — and the correct answer
+/// if not — instead of the answer being shown right away.
+class MatchingQuizScreen extends StatefulWidget {
+  final String title;
+  final String emoji;
+  final WordGroup group;
+  const MatchingQuizScreen({super.key, required this.title, required this.emoji, required this.group});
 
   @override
-  State<ThemeQuizScreen> createState() => _ThemeQuizScreenState();
+  State<MatchingQuizScreen> createState() => _MatchingQuizScreenState();
 }
 
-class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
+class _MatchingQuizScreenState extends State<MatchingQuizScreen> {
   int _i = 0;
   int? _picked;
   late final List<List<String>> _optionsPerQuestion;
@@ -23,10 +25,14 @@ class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
   @override
   void initState() {
     super.initState();
-    final allAnswers = lemonadeQuiz.map((q) => q.answer).toSet().toList();
-    _optionsPerQuestion = lemonadeQuiz.map((q) {
+    // Every possible answer in this group becomes an option for every
+    // question — shuffled with a fixed (per-question) seed so the order
+    // doesn't jump around when the widget rebuilds, but still differs
+    // from the book's original left-to-right order.
+    final allAnswers = widget.group.pairs.map((p) => p.b).toSet().toList();
+    _optionsPerQuestion = widget.group.pairs.map((p) {
       final opts = List<String>.from(allAnswers);
-      opts.shuffle(Random(q.answer.hashCode));
+      opts.shuffle(Random(p.a.hashCode));
       return opts;
     }).toList();
   }
@@ -39,15 +45,15 @@ class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
   void _next() {
     setState(() {
       _picked = null;
-      _i = (_i + 1) % lemonadeQuiz.length;
+      _i = (_i + 1) % widget.group.pairs.length;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final item = lemonadeQuiz[_i];
+    final pair = widget.group.pairs[_i];
     final options = _optionsPerQuestion[_i];
-    final correctIndex = options.indexOf(item.answer);
+    final correctIndex = options.indexOf(pair.b);
 
     return Scaffold(
       body: SafeArea(
@@ -72,42 +78,24 @@ class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("LEMONADE — Connect the Theme",
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                        Text("Item ${_i + 1} of ${lemonadeQuiz.length}", style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                        Text(widget.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                        Text("Question ${_i + 1} of ${widget.group.pairs.length}",
+                            style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
                       ],
                     ),
                   ),
-                  const Text("🍋", style: TextStyle(fontSize: 26)),
+                  Text(widget.emoji, style: const TextStyle(fontSize: 26)),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
-              child: Text(
-                "What do these words have in common? (Example: Catch, run-out, Wicket, Pitch → Cricket)",
-                style: const TextStyle(fontSize: 13, color: AppColors.inkSoft, height: 1.4),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+              padding: const EdgeInsets.all(18),
               child: Container(
                 padding: const EdgeInsets.all(18),
                 decoration: cardDecoration(),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: item.clues
-                      .map((w) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(10)),
-                            child: Text(w, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                          ))
-                      .toList(),
-                ),
+                child: Text(pair.a, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
               ),
             ),
-            const SizedBox(height: 14),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -161,10 +149,10 @@ class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _picked == correctIndex ? "Correct!" : "Not quite — the correct answer is: ${item.answer}",
+                        _picked == correctIndex ? "Correct!" : "Not quite — the correct answer is: ${pair.b}",
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                       ),
-                      tamilMeaning(item.tamilAnswer, topGap: 6),
+                      tamilMeaning(pair.tamilB, topGap: 6),
                     ],
                   ),
                 ),
