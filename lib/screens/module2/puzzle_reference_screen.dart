@@ -82,7 +82,7 @@ class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(p.solution ?? "No confirmed answer for this one — the book's picture puzzle has no printed solution.",
+                                Text(p.solution ?? "No confirmed answer for this one yet — keep thinking!",
                                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                                 if (p.tamilSolution != null) tamilMeaning(p.tamilSolution!, topGap: 6),
                               ],
