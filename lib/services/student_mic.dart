@@ -30,6 +30,22 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 /// already has this by default. If a phone genuinely has none installed,
 /// listening will fail fast with a clear "didn't catch that" instead of
 /// hanging — which is a world away from the old bug.
+///
+/// ANDROID-13 NOTE: a handful of Android 13 phones/builds (this is a
+/// documented, widely-reported flaky spot in Android's own on-device
+/// speech engine — the same class of "error 9 / insufficient permissions"
+/// or "error_client" failure shows up across many unrelated apps and
+/// frameworks on Android 13, and is generally gone again by Android 14+)
+/// occasionally fail the very first on-device recognition attempt even
+/// though the phone genuinely supports it and permission is genuinely
+/// granted. Two defences below target exactly that, without ever sending
+/// audio off the device: a short one-time pause the very first time the
+/// microphone permission is freshly granted (some builds need a moment to
+/// propagate that grant to the separate speech-recognition system
+/// service), and a single silent retry of the SAME on-device attempt when
+/// the engine itself reports a technical error — never when the student
+/// simply said nothing recognizable, which is left alone exactly as
+/// before.
 class StudentMic {
   StudentMic._();
   static final StudentMic instance = StudentMic._();
@@ -52,7 +68,7 @@ class StudentMic {
   String? _localeId;
   String? get activeLocaleId => _localeId;
 
-  // If a listenOnce() call is currently active, this lets the persistent
+  // If a listen attempt is currently active, this lets the persistent
   // onStatus/onError callbacks (registered once, in _ensureReady) tell it
   // "the platform says listening has ended" even when no finalResult ever
   // arrives — e.g. the student stayed silent, or said something the
@@ -60,6 +76,16 @@ class StudentMic {
   // that" case would sit waiting for the full safety-net timeout instead
   // of returning right away.
   void Function()? _activeListenDone;
+
+  // The most recent error code the platform's speech engine reported (e.g.
+  // "error_client", "error_insufficient_permissions", "error_no_match").
+  // Used internally to tell "the engine itself hiccupped" (worth a silent
+  // retry, still fully on-device) apart from "the student said nothing
+  // recognizable" (not worth retrying — retrying won't manufacture speech
+  // that was never there). Also exposed read-only in case a future report
+  // needs the exact native reason instead of guessing.
+  String? _lastEngineError;
+  String? get lastEngineError => _lastEngineError;
 
   bool get isReady => _available;
   String? get initError => _initError;
@@ -87,7 +113,10 @@ class StudentMic {
     try {
       final ok = await _speech
           .initialize(
-            onError: (_) => _activeListenDone?.call(),
+            onError: (error) {
+              _lastEngineError = error.errorMsg;
+              _activeListenDone?.call();
+            },
             onStatus: (status) {
               if (status == "done" || status == "notListening") {
                 _activeListenDone?.call();
@@ -140,11 +169,33 @@ class StudentMic {
     }
   }
 
+  /// True for engine-side error codes worth a single silent retry (still
+  /// fully on-device, never touches the network) rather than giving up
+  /// immediately. These are the codes phones report when the recognizer
+  /// service itself hiccupped on this attempt — a documented flaky spot on
+  /// some Android 13 builds in particular — never when the student simply
+  /// said nothing understandable ("error_no_match" / "error_speech_timeout"
+  /// are deliberately excluded: retrying those just delays the honest
+  /// "didn't catch that" without ever helping).
+  bool _isRecoverableEngineError(String? errorMsg) {
+    const recoverable = {
+      "error_client",
+      "error_insufficient_permissions",
+      "error_audio",
+      "error_server",
+      "error_recognizer_busy",
+      "error_network",
+      "error_network_timeout",
+    };
+    return errorMsg != null && recoverable.contains(errorMsg);
+  }
+
   /// Listens for a single utterance and returns the transcript. Guaranteed
   /// to finish (with "" if nothing usable was heard) within roughly
   /// [timeout] plus a few seconds, no matter what the platform does —
   /// there is always a hard safety-net timer as a last resort.
   Future<String> listenOnce({Duration timeout = const Duration(seconds: 8)}) async {
+    final wasAlreadyGranted = await Permission.microphone.status == PermissionStatus.granted;
     final micStatus = await Permission.microphone.request().timeout(
           const Duration(seconds: 10),
           onTimeout: () => PermissionStatus.denied,
@@ -152,12 +203,40 @@ class StudentMic {
     if (!micStatus.isGranted) {
       throw StateError("mic-permission-denied");
     }
+    if (!wasAlreadyGranted) {
+      // The very first time this phone grants microphone access, some
+      // Android builds take a brief moment to propagate that grant to the
+      // separate speech-recognition system service. Starting the
+      // recognizer immediately after the grant can then fail with an
+      // "insufficient permissions" error even though the permission truly
+      // is granted — this has been reported specifically on some Android
+      // 13 devices. This pause runs only this once per install, so it
+      // costs everyone else nothing.
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
 
     final ready = await _ensureReady();
     if (!ready) {
       throw StateError(_initError ?? "mic-unavailable");
     }
 
+    final firstTry = await _attemptListen(timeout);
+    if (firstTry.isNotEmpty || !_isRecoverableEngineError(_lastEngineError)) {
+      return firstTry;
+    }
+
+    // The on-device engine reported a technical hiccup rather than genuine
+    // silence — one silent retry of the same fully-on-device attempt
+    // resolves this far more often than not.
+    _lastEngineError = null;
+    await Future.delayed(const Duration(milliseconds: 300));
+    return _attemptListen(timeout);
+  }
+
+  /// One attempt at listening for a single utterance. Broken out from
+  /// [listenOnce] so that method can retry it once without duplicating the
+  /// completer/timer plumbing.
+  Future<String> _attemptListen(Duration timeout) async {
     final completer = Completer<String>();
     String lastWords = "";
     bool done = false;
@@ -198,7 +277,7 @@ class StudentMic {
       finish("");
     }
 
-    // Belt-and-braces: guarantees listenOnce() can never hang forever even
+    // Belt-and-braces: guarantees this attempt can never hang forever even
     // if the platform never sends any status/error/result callback at all
     // — the exact failure mode that made the old engine unusable.
     safetyTimer = Timer(timeout + const Duration(seconds: 8), () async {
