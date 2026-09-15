@@ -36,6 +36,7 @@ jobs:
           cp source/pubspec.yaml build_app/pubspec.yaml
           rm -rf build_app/assets
           cp -r source/assets build_app/assets
+          cp source/android_keystore/speakright-release.keystore build_app/android/app/speakright-release.keystore
 
       # The study-themed app icon is generated here from a small Python
       # script (assets/icon/generate_icon.py) rather than committed as a
@@ -198,7 +199,7 @@ jobs:
               print("WARNING: MainActivity not found — skipping crash-guard Application class")
           PY
 
-      - name: Set minSdk/compileSdk
+      - name: Set minSdk/compileSdk + fixed release signing
         run: |
           python3 - <<'PY'
           import glob, os
@@ -218,17 +219,65 @@ jobs:
           #     older/budget ones.
           #   - compileSdk 36: several plugins' androidx dependencies need
           #     compiling against a recent API; 36 is safely current.
+          #   - signingConfigs/buildTypes.release: without this, Flutter's
+          #     scaffolded template signs the release build with whatever
+          #     debug.keystore happens to exist on the machine — and since
+          #     we scaffold a brand-new project on a brand-new GitHub
+          #     Actions runner every single build, that keystore (and so
+          #     the app's signing certificate) was different on every
+          #     build. Android refuses to install an APK over an existing
+          #     install if the signing certificate doesn't match the one
+          #     already on the phone ("App not installed", with no more
+          #     specific reason shown) — so every new build silently broke
+          #     in-place updates for anyone who already had a previous
+          #     build installed. speakright-release.keystore (checked into
+          #     this repo, copied into place in the "Overlay our app code"
+          #     step above) is the fix: the same fixed key signs every
+          #     release build from now on, so new builds update cleanly
+          #     over old ones without needing an uninstall first.
           candidates = glob.glob("build_app/android/app/build.gradle*")
           for path in candidates:
               is_kts = path.endswith(".kts")
               snippet = (
-                  '\nandroid {\n    compileSdk = 36\n    defaultConfig {\n        minSdk = 23\n    }\n}\n'
+                  '\nandroid {\n'
+                  '    compileSdk = 36\n'
+                  '    defaultConfig {\n        minSdk = 23\n    }\n'
+                  '    signingConfigs {\n'
+                  '        create("release") {\n'
+                  '            storeFile = file("speakright-release.keystore")\n'
+                  '            storePassword = "speakright123"\n'
+                  '            keyAlias = "speakright"\n'
+                  '            keyPassword = "speakright123"\n'
+                  '        }\n'
+                  '    }\n'
+                  '    buildTypes {\n'
+                  '        release {\n'
+                  '            signingConfig = signingConfigs.getByName("release")\n'
+                  '        }\n'
+                  '    }\n'
+                  '}\n'
                   if is_kts else
-                  '\nandroid {\n    compileSdkVersion 36\n    defaultConfig {\n        minSdkVersion 23\n    }\n}\n'
+                  '\nandroid {\n'
+                  '    compileSdkVersion 36\n'
+                  '    defaultConfig {\n        minSdkVersion 23\n    }\n'
+                  '    signingConfigs {\n'
+                  '        release {\n'
+                  '            storeFile file("speakright-release.keystore")\n'
+                  '            storePassword "speakright123"\n'
+                  '            keyAlias "speakright"\n'
+                  '            keyPassword "speakright123"\n'
+                  '        }\n'
+                  '    }\n'
+                  '    buildTypes {\n'
+                  '        release {\n'
+                  '            signingConfig signingConfigs.release\n'
+                  '        }\n'
+                  '    }\n'
+                  '}\n'
               )
               with open(path, "a", encoding="utf-8") as f:
                   f.write(snippet)
-              print(f"Appended minSdk/compileSdk override to {path}")
+              print(f"Appended minSdk/compileSdk/signing override to {path}")
               with open(path, "r", encoding="utf-8") as f:
                   print(f.read())
           PY
