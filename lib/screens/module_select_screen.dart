@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'module2/vocab_home_screen.dart';
 import 'module3/grammar_home_screen.dart';
+import 'module4/comprehension_home_screen.dart';
 
 /// The very first screen the student sees: choose which Module to work
 /// on. Module 1 (Conversation) is the original app; Module 2 (Vocabulary)
@@ -79,6 +80,17 @@ class ModuleSelectScreen extends StatelessWidget {
                   subtitle: "Sentences, parts of speech, tenses, voice, prepositions & more.",
                   color: const Color(0xFF10B981),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GrammarHomeScreen())),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: _ModuleCard(
+                  emoji: "📚",
+                  title: "Module 4 · Comprehension",
+                  subtitle: "Short stories to read, with questions to check your understanding.",
+                  color: const Color(0xFFF59E0B),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComprehensionHomeScreen())),
                 ),
               ),
               const SizedBox(height: 30),
