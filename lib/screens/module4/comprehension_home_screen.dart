@@ -46,7 +46,7 @@ class ComprehensionHomeScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Padding(
                       padding: EdgeInsets.only(left: 44),
-                      child: Text("Read short stories and answer questions — with Tamil summaries",
+                      child: Text("Read short stories and answer questions — fully in Tamil too",
                           style: TextStyle(color: Colors.white70, fontSize: 12.5)),
                     ),
                   ],

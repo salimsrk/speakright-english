@@ -63,7 +63,7 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5)),
-                        if (passage.tamilSummary.isNotEmpty) tamilMeaning(passage.tamilSummary, topGap: 10),
+                        if (passage.tamilPassage.isNotEmpty) tamilMeaning(passage.tamilPassage, topGap: 10),
                       ],
                     ),
                   ),
@@ -79,13 +79,24 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(passage.questions[i].prompt, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4)),
+                          if (passage.questions[i].tamilPrompt.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(passage.questions[i].tamilPrompt, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
+                            ),
                           const SizedBox(height: 10),
                           if (_revealed.contains(i))
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(12)),
-                              child: Text(passage.questions[i].answer, style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(passage.questions[i].answer, style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                                  if (passage.questions[i].tamilAnswer.isNotEmpty) tamilMeaning(passage.questions[i].tamilAnswer, topGap: 8),
+                                ],
+                              ),
                             )
                           else
                             OutlinedButton(
