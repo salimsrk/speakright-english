@@ -869,9 +869,13 @@ final GrammarTopic _clauseTopic = GrammarTopic(
         "Subject: Why she left is a mystery.",
         "Object: I do not know when she will come.",
         "Object: Tell me why you told a lie.",
+        "Object: No one knows how old she is.",
         "Object of preposition: Pay careful attention to what he says.",
+        "Object of preposition: He was greatly pleased with what I said.",
         "Complement: Her fear is that she may fail.",
         "Complement: Life is what we make of it.",
+        "Complement: His belief is that ghosts can talk.",
+        "Apposition: My hope that you may pass is very strong.",
         "Apposition: The report that he was killed is false.",
         "Apposition: It is clear that he was innocent.",
       ],
@@ -1007,7 +1011,7 @@ final GrammarTopic _prepositionTopic = GrammarTopic(
         GrammarFillItem(prompt: "He lives ____ Puri but I meet him often ____ Kolkotta.", answer: "at, in", tamilHint: "சிறு ஊர் - at, பெரிய நகரம் - in"),
         GrammarFillItem(prompt: "The two brothers quarralled ____ themselves.", answer: "between", tamilHint: "இருவருக்கு இடையே - between"),
         GrammarFillItem(prompt: "It has been raining ____ yesterday.", answer: "since", tamilHint: "தொடர்ச்சியான நேரம் - since"),
-        GrammarFillItem(prompt: "He came and sat ____ me last month.", answer: "with", tamilHint: "உடன் - with"),
+        GrammarFillItem(prompt: "He came and sat ____ me ____ last month.", answer: "by, for", tamilHint: "அருகில் - by, கால அளவு - for"),
         GrammarFillItem(prompt: "He has been ill ____ Tuesday.", answer: "since", tamilHint: "தொடர்ச்சியான நேரம் - since"),
         GrammarFillItem(prompt: "We have lived in this town ____ 1975.", answer: "since", tamilHint: "தொடர்ச்சியான நேரம் - since"),
         GrammarFillItem(prompt: "He met her ____ the station.", answer: "at", tamilHint: "இடம் - at"),
@@ -1075,8 +1079,8 @@ final GrammarTopic _articlesTopic = GrammarTopic(
       tamilInstructions: "பொருத்தமான கட்டுரைச் சொல்லைக் (a/an/the) கொண்டு நிரப்புங்கள்.",
       items: [
         GrammarFillItem(
-          prompt: "Leo Tolstoy was born in ___ Russian noble family. He became ___ orphan at ___ age of nine. He was enlisted as ___ officer in ___ army and served there.",
-          answer: "a Russian noble family / an orphan / the age of nine / an officer / the army",
+          prompt: "Leo Tolstoy was born in ___ Russian noble family. He became ___ orphan at ___ age of nine. He was enlisted as ___ officer in army and served there.",
+          answer: "a Russian noble family / an orphan / the age of nine / an officer",
         ),
         GrammarFillItem(
           prompt: "Experiments had reached ___ last stage and it seemed that success was just around ___ corner, when ___ disaster occurred which threw the whole family into mourning.",
