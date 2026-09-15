@@ -52,8 +52,18 @@ class ModelLettersScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         for (int i = 0; i < letterWritingTips.length; i++)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Text("${i + 1}. ${letterWritingTips[i]}", style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("${i + 1}. ${letterWritingTips[i]}", style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                                if (i < letterWritingTamilTips.length && letterWritingTamilTips[i].isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2, left: 4),
+                                    child: Text(letterWritingTamilTips[i], style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                                  ),
+                              ],
+                            ),
                           ),
                       ],
                     ),
@@ -89,11 +99,23 @@ class ModelLettersScreen extends StatelessWidget {
                           const Text("To: (the concerned official's address)", style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppColors.inkSoft)),
                           const SizedBox(height: 12),
                           Text(letter.subject, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                          if (letter.tamilSubject.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(letter.tamilSubject, style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                            ),
                           const SizedBox(height: 12),
-                          for (final para in letter.body)
+                          for (int i = 0; i < letter.body.length; i++)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: Text(para, style: const TextStyle(fontSize: 13.5, height: 1.5)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(letter.body[i], style: const TextStyle(fontSize: 13.5, height: 1.5)),
+                                  if (i < letter.tamilBody.length && letter.tamilBody[i].isNotEmpty)
+                                    tamilMeaning(letter.tamilBody[i], topGap: 4),
+                                ],
+                              ),
                             ),
                         ],
                       ),

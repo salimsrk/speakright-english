@@ -77,13 +77,20 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                           ),
                         const SizedBox(height: 10),
                         Text(h.hint, style: const TextStyle(fontSize: 13.5, height: 1.5, fontStyle: FontStyle.italic)),
+                        if (h.tamilHint.isNotEmpty) tamilMeaning(h.tamilHint, topGap: 6),
                         const SizedBox(height: 12),
                         if (_revealed.contains(i))
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(12)),
-                            child: Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5)),
+                                if (h.tamilSampleStory.isNotEmpty) tamilMeaning(h.tamilSampleStory, topGap: 8),
+                              ],
+                            ),
                           )
                         else
                           OutlinedButton(

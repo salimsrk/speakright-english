@@ -71,7 +71,7 @@ class ReadingPassagesScreen extends StatelessWidget {
                           ),
                         const SizedBox(height: 10),
                         Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                        if (p.tamilSummary.isNotEmpty) tamilMeaning(p.tamilSummary, topGap: 10),
+                        if (p.tamilPassage.isNotEmpty) tamilMeaning(p.tamilPassage, topGap: 10),
                       ],
                     ),
                   );

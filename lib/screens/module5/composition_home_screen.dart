@@ -60,7 +60,7 @@ class CompositionHomeScreen extends StatelessWidget {
                   _SectionTile(
                     emoji: "📖",
                     title: "Improve Your Reading Skill",
-                    subtitle: "5 passages to read aloud, with Tamil summaries",
+                    subtitle: "5 passages to read aloud, fully translated in Tamil too",
                     color: const Color(0xFF3B82F6),
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReadingPassagesScreen())),
                   ),
