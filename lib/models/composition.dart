@@ -6,6 +6,13 @@
 // skills, not right/wrong exercises), so — same as Module 4 — anything
 // beyond the book's own words (a sample story for a hint) is my own,
 // written to model the skill, not a definitive answer.
+//
+// Tamil coverage: every passage has a full Tamil translation
+// (`tamilPassage`), every model letter has a Tamil subject and Tamil
+// body paragraphs, and every story hint has a Tamil translation of both
+// its hint outline and its sample story — not just a Tamil title/gist —
+// so a student can follow the actual content in Tamil, not only a short
+// note about it.
 
 /// A passage meant to be read aloud for fluency/pronunciation practice.
 class ReadingPassage {
@@ -14,14 +21,14 @@ class ReadingPassage {
   final String byline;
   final String emoji;
   final String passage;
-  final String tamilSummary;
+  final String tamilPassage;
   const ReadingPassage({
     required this.title,
     this.tamilTitle = "",
     this.byline = "",
     required this.emoji,
     required this.passage,
-    this.tamilSummary = "",
+    this.tamilPassage = "",
   });
 }
 
@@ -34,14 +41,18 @@ class ModelLetter {
   final String emoji;
   final String dateLine;
   final String subject;
+  final String tamilSubject;
   final List<String> body;
+  final List<String> tamilBody;
   const ModelLetter({
     required this.title,
     this.tamilTitle = "",
     required this.emoji,
     required this.dateLine,
     required this.subject,
+    this.tamilSubject = "",
     required this.body,
+    this.tamilBody = const [],
   });
 }
 
@@ -53,12 +64,16 @@ class StoryHint {
   final String tamilTitle;
   final String emoji;
   final String hint;
+  final String tamilHint;
   final String sampleStory;
+  final String tamilSampleStory;
   const StoryHint({
     required this.title,
     this.tamilTitle = "",
     required this.emoji,
     required this.hint,
+    this.tamilHint = "",
     required this.sampleStory,
+    this.tamilSampleStory = "",
   });
 }
