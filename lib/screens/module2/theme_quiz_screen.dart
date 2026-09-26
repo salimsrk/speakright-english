@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// The "LEMONADE" vocabulary test — a set of clue words that all connect
 /// to one hidden theme/answer (e.g. "Monitors, Motherboard, Software,
@@ -36,11 +37,15 @@ class _ThemeQuizScreenState extends State<ThemeQuizScreen> {
     setState(() => _picked = idx);
   }
 
-  void _next() {
+  Future<void> _next() async {
+    // Wrapping back to the first item means the student just finished a
+    // full pass through this quiz — a natural "exercise complete" point.
+    final justFinishedAll = _i == lemonadeQuiz.length - 1;
     setState(() {
       _picked = null;
       _i = (_i + 1) % lemonadeQuiz.length;
     });
+    if (justFinishedAll) await showFunFact(context);
   }
 
   @override
