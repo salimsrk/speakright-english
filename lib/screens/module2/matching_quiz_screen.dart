@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../models/vocab.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Turns a matching-style WordGroup (word → game, country → currency,
 /// Group A → Group B) into an interactive quiz: pick the answer you think
@@ -42,11 +43,15 @@ class _MatchingQuizScreenState extends State<MatchingQuizScreen> {
     setState(() => _picked = idx);
   }
 
-  void _next() {
+  Future<void> _next() async {
+    // Wrapping back to the first item means the student just finished a
+    // full pass through this quiz — a natural "exercise complete" point.
+    final justFinishedAll = _i == widget.group.pairs.length - 1;
     setState(() {
       _picked = null;
       _i = (_i + 1) % widget.group.pairs.length;
     });
+    if (justFinishedAll) await showFunFact(context);
   }
 
   @override
