@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/vocab.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Reusable "unscramble the letters" screen — used for both the Jumbled
 /// Words puzzle and the "find the non-mammal" puzzle (reveal-the-answer
@@ -26,6 +27,13 @@ class JumbledWordsScreen extends StatefulWidget {
 
 class _JumbledWordsScreenState extends State<JumbledWordsScreen> {
   final Set<int> _revealed = {};
+
+  Future<void> _reveal(int i) async {
+    setState(() => _revealed.add(i));
+    // Every answer on this screen now revealed — a natural "exercise
+    // complete" point.
+    if (_revealed.length == widget.items.length) await showFunFact(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +103,7 @@ class _JumbledWordsScreenState extends State<JumbledWordsScreen> {
                           )
                         else
                           OutlinedButton(
-                            onPressed: () => setState(() => _revealed.add(i)),
+                            onPressed: () => _reveal(i),
                             child: const Text("Show answer"),
                           ),
                       ],
