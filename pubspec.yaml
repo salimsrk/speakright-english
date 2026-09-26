@@ -14,6 +14,16 @@ dependencies:
   speech_to_text: ^7.4.0
   permission_handler: ^11.3.1
   shared_preferences: ^2.3.3
+  # Added for the student voice-playback feature: `record` captures the
+  # student's own audio alongside the existing speech_to_text scoring flow
+  # (which only transcribes live and never keeps the audio itself), and
+  # `audioplayers` plays that recording back. `path_provider` gives us a
+  # writable temp folder to save each take to. These are strictly additive
+  # — see StudentRecorder's header comment for why this never touches
+  # student_mic.dart's own hardened listen/retry logic.
+  record: ^7.1.1
+  audioplayers: ^6.8.1
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
