@@ -3,25 +3,37 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
-/// Records the student's own voice alongside the existing speech-to-text
-/// scoring flow in [StudentMic], purely so the student can play back what
-/// they just said (the client's request: "student pesuratha play back
-/// panni pakura option").
+/// Records the student's own voice so they can play it back afterwards
+/// (the client's request: "student pesuratha play back panni pakura
+/// option"). `speech_to_text` (used by StudentMic) only ever gives us a
+/// live, on-device TRANSCRIPT — it never exposes the recorded audio
+/// itself, so there was previously no way to play a take back. This class
+/// adds that, completely separately.
 ///
-/// `speech_to_text` (used by StudentMic) only ever gives us a live,
-/// on-device TRANSCRIPT — it never exposes the recorded audio itself, so
-/// there was previously no way to play a take back. This class adds that,
-/// completely separately.
+/// CRITICAL — READ BEFORE CALLING start() NEAR StudentMic:
+/// The very first version of this feature called start()/stop() around
+/// StudentMic.listenOnce(), so the same take could be both scored AND
+/// played back. That was shipped and tested on a real device, and it
+/// reliably broke speech recognition: every attempt came back "Didn't
+/// catch that", 100% of the time. Root cause — recording audio (this
+/// class's own AudioRecord session, via the `record` package) and
+/// speech_to_text's live recognition both need exclusive access to the
+/// microphone; when both are open at once, the OS lets only one of them
+/// actually hear real audio, and it silently starved the recognizer
+/// instead of throwing an error, which is why it looked like STT itself
+/// had regressed. See widgets/voice_replay_control.dart for the fix: it
+/// only ever opens a StudentRecorder session AFTER a StudentMic session
+/// has fully finished, never during or overlapping with one. Do not
+/// reintroduce concurrent start()/listenOnce() calls.
 ///
-/// IMPORTANT: this is a strictly ADDITIVE, fail-soft layer. StudentMic's
-/// listen/retry logic has a long, hard-won history of native-hang bugs
-/// (see that file's header comment), so this class must never be allowed
-/// to throw, block, or otherwise interfere with it. Every method below
-/// swallows its own errors and returns a "nothing happened" result
-/// instead — on a device where recording fails (permission denied, mic
-/// busy, unsupported codec, etc.) the practical effect is simply that no
-/// playback button appears; the actual speaking practice and its scoring
-/// keep working exactly as before, unaffected either way.
+/// This is otherwise a strictly ADDITIVE, fail-soft layer. StudentMic's
+/// own listen/retry logic has a long, hard-won history of native-hang
+/// bugs (see that file's header comment), so this class must never be
+/// allowed to throw or block. Every method below swallows its own errors
+/// and returns a "nothing happened" result instead — on a device where
+/// recording fails (permission denied, mic busy, unsupported codec, etc.)
+/// the practical effect is simply that no playback is offered for that
+/// take.
 class StudentRecorder {
   StudentRecorder._();
   static final StudentRecorder instance = StudentRecorder._();
