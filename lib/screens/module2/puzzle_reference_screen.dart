@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Reference screen for the three stand-alone puzzles from the book that
 /// are pictures rather than plain text (missing-letters grid, the bottle
@@ -16,6 +17,13 @@ class PuzzleReferenceScreen extends StatefulWidget {
 
 class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
   final Set<int> _revealed = {};
+
+  Future<void> _reveal(int i) async {
+    setState(() => _revealed.add(i));
+    // Every puzzle on this screen now revealed — a natural "exercise
+    // complete" point.
+    if (_revealed.length == puzzleReferences.length) await showFunFact(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +98,7 @@ class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
                           )
                         else
                           OutlinedButton(
-                            onPressed: () => setState(() => _revealed.add(i)),
+                            onPressed: () => _reveal(i),
                             child: Text(p.solution != null ? "Show answer" : "Show note"),
                           ),
                       ],
