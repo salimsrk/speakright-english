@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/grammar.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Reusable "think first, then reveal" screen for every Module 3 exercise
 /// that isn't a two-way MCQ choice — noun pairs, verb agreement, voice
@@ -18,6 +19,13 @@ class GrammarFillScreen extends StatefulWidget {
 
 class _GrammarFillScreenState extends State<GrammarFillScreen> {
   final Set<int> _revealed = {};
+
+  Future<void> _reveal(int i) async {
+    setState(() => _revealed.add(i));
+    // Every answer in this set now revealed — a natural "exercise
+    // complete" point.
+    if (_revealed.length == widget.set.items.length) await showFunFact(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +100,7 @@ class _GrammarFillScreenState extends State<GrammarFillScreen> {
                           )
                         else
                           OutlinedButton(
-                            onPressed: () => setState(() => _revealed.add(i)),
+                            onPressed: () => _reveal(i),
                             child: const Text("Show answer"),
                           ),
                       ],
