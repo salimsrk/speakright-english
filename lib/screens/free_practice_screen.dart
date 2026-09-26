@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
 import '../services/student_mic.dart';
+import '../services/student_recorder.dart';
 import '../services/scoring.dart';
 import '../theme/app_theme.dart';
+import '../widgets/fun_fact_dialog.dart';
+import '../widgets/voice_playback_button.dart';
 import 'results_screen.dart';
 
 class _DemoBubble {
@@ -27,6 +30,9 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
   String _heard = "";
   String? _error;
   final List<int> _scores = [];
+  // Path to a recording of the student's most recent take, for playback —
+  // null whenever recording wasn't available on this device.
+  String? _recordingPath;
 
   // --- Sample-answer playback (the book's worked-example dialogue, when
   // one exists for this challenge) ---
@@ -74,9 +80,14 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
       _listening = true;
       _error = null;
       _result = null;
+      _recordingPath = null;
     });
     try {
+      // Runs alongside the live transcription below purely so the take can
+      // be played back afterwards — fail-soft, never blocks scoring.
+      await StudentRecorder.instance.start();
       final transcript = await StudentMic.instance.listenOnce(timeout: const Duration(seconds: 20));
+      final recordingPath = await StudentRecorder.instance.stop();
       if (transcript.isEmpty) {
         setState(() {
           _error = "Didn't catch that — try speaking again.";
@@ -88,10 +99,12 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
       setState(() {
         _heard = transcript;
         _result = score;
+        _recordingPath = recordingPath;
         _scores.add(score.percent);
         _listening = false;
       });
     } catch (e) {
+      await StudentRecorder.instance.cancel();
       setState(() {
         _error = "Needs microphone access. Practice speaking about this topic out loud anyway!";
         _listening = false;
@@ -99,10 +112,14 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
     }
   }
 
-  void _next() {
+  Future<void> _next() async {
     final prompts = widget.topic.prompts;
     if (_i + 1 >= prompts.length) {
       final avg = _scores.isEmpty ? 70 : (_scores.reduce((a, b) => a + b) / _scores.length).round();
+      // Last challenge in this topic complete — a short fun-fact break
+      // before showing the final results.
+      await showFunFact(context);
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => ResultsScreen(topic: widget.topic, percent: avg)),
       );
@@ -122,6 +139,7 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
   @override
   void dispose() {
     TeacherTts.instance.stop();
+    StudentRecorder.instance.cancel();
     super.dispose();
   }
 
@@ -299,6 +317,7 @@ class _FreePracticeScreenState extends State<FreePracticeScreen> {
                       const SizedBox(height: 4),
                       Text('You said: "$_heard"',
                           style: const TextStyle(fontSize: 13.5, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
+                      VoicePlaybackButton(audioPath: _recordingPath),
                     ],
                   ),
                 ),
