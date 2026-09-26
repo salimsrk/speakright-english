@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/comprehension.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Shows one Module 4 reading passage: the English story, a short Tamil
 /// summary, then its five comprehension questions in a "think first,
@@ -16,6 +17,13 @@ class ComprehensionPassageScreen extends StatefulWidget {
 
 class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen> {
   final Set<int> _revealed = {};
+
+  Future<void> _reveal(int i) async {
+    setState(() => _revealed.add(i));
+    // Every question's model answer now revealed — a natural "topic
+    // complete" point for this passage.
+    if (_revealed.length == widget.passage.questions.length) await showFunFact(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +108,7 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                             )
                           else
                             OutlinedButton(
-                              onPressed: () => setState(() => _revealed.add(i)),
+                              onPressed: () => _reveal(i),
                               child: const Text("Show model answer"),
                             ),
                         ],
