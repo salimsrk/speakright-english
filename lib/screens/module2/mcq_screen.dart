@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/vocab.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// Reusable multiple-choice quiz screen — used for both the Synonym and
 /// the Antonym drills. Tap an option to see if it's correct; tap "Next"
@@ -24,11 +25,15 @@ class _McqScreenState extends State<McqScreen> {
     setState(() => _picked = idx);
   }
 
-  void _next() {
+  Future<void> _next() async {
+    // Wrapping back to the first question means the student just finished
+    // a full pass through this quiz — a natural "exercise complete" point.
+    final justFinishedAll = _i == widget.questions.length - 1;
     setState(() {
       _picked = null;
       _i = (_i + 1) % widget.questions.length;
     });
+    if (justFinishedAll) await showFunFact(context);
   }
 
   @override
