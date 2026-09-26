@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/composition_content.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// "Composition - B: Developing Hints" — the book's 5 hint outlines,
 /// each with a "think first, then reveal" sample story, the same
@@ -14,6 +15,13 @@ class DevelopingHintsScreen extends StatefulWidget {
 
 class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
   final Set<int> _revealed = {};
+
+  Future<void> _reveal(int i) async {
+    setState(() => _revealed.add(i));
+    // Every sample story now revealed — a natural "exercise complete"
+    // point.
+    if (_revealed.length == storyHints.length) await showFunFact(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +102,7 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                           )
                         else
                           OutlinedButton(
-                            onPressed: () => setState(() => _revealed.add(i)),
+                            onPressed: () => _reveal(i),
                             child: const Text("Show sample story"),
                           ),
                       ],
