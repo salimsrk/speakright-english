@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
 import '../services/student_mic.dart';
+import '../services/student_recorder.dart';
 import '../services/scoring.dart';
 import '../theme/app_theme.dart';
+import '../widgets/fun_fact_dialog.dart';
+import '../widgets/voice_playback_button.dart';
 import 'results_screen.dart';
 
 class ReadingScreen extends StatefulWidget {
@@ -18,15 +21,23 @@ class _ReadingScreenState extends State<ReadingScreen> {
   ScoreResult? _result;
   String _heard = "";
   String? _error;
+  // Path to a recording of the student's most recent take, for playback —
+  // null whenever recording wasn't available on this device.
+  String? _recordingPath;
 
   Future<void> _mic() async {
     setState(() {
       _listening = true;
       _error = null;
       _result = null;
+      _recordingPath = null;
     });
     try {
+      // Runs alongside the live transcription below purely so the take can
+      // be played back afterwards — fail-soft, never blocks scoring.
+      await StudentRecorder.instance.start();
       final transcript = await StudentMic.instance.listenOnce(timeout: const Duration(seconds: 20));
+      final recordingPath = await StudentRecorder.instance.stop();
       if (transcript.isEmpty) {
         setState(() {
           _error = "Didn't catch that — tap the microphone and try again.";
@@ -38,9 +49,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
       setState(() {
         _heard = transcript;
         _result = score;
+        _recordingPath = recordingPath;
         _listening = false;
       });
     } catch (e) {
+      await StudentRecorder.instance.cancel();
       setState(() {
         _error = e.toString().contains("mic-permission-denied")
             ? "Please allow microphone access to practice speaking."
@@ -53,6 +66,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
   @override
   void dispose() {
     TeacherTts.instance.stop();
+    StudentRecorder.instance.cancel();
     super.dispose();
   }
 
@@ -152,6 +166,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       const SizedBox(height: 4),
                       Text('You said: "$_heard"',
                           style: const TextStyle(fontSize: 13.5, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
+                      VoicePlaybackButton(audioPath: _recordingPath),
                     ],
                   ),
                 ),
@@ -163,9 +178,15 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => ResultsScreen(topic: t, percent: _result!.percent)),
-                    ),
+                    onPressed: () async {
+                      // Reading practice is a single-passage topic, so this
+                      // is its natural "topic complete" moment.
+                      await showFunFact(context);
+                      if (!context.mounted) return;
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => ResultsScreen(topic: t, percent: _result!.percent)),
+                      );
+                    },
                     style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
                     child: const Text("See my results →", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
