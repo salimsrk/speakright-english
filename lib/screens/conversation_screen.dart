@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
 import '../services/student_mic.dart';
+import '../services/student_recorder.dart';
 import '../services/scoring.dart';
 import '../theme/app_theme.dart';
+import '../widgets/fun_fact_dialog.dart';
+import '../widgets/voice_playback_button.dart';
 import 'results_screen.dart';
 
 class _Bubble {
@@ -31,6 +34,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ScoreResult? _lastResult;
   String? _error;
   bool _awaitingContinue = false;
+  // Path to a recording of the student's most recent take, so they can
+  // play it back — null whenever recording wasn't available (e.g. denied
+  // permission) or hasn't produced a scored result yet.
+  String? _recordingPath;
   // See the identical field in repeat_screen.dart: ticks once a second
   // while _preparing is true so the button can show a live elapsed-time
   // count instead of a static label that would look frozen during a
@@ -47,6 +54,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void dispose() {
     _prepTicker?.cancel();
     TeacherTts.instance.stop();
+    StudentRecorder.instance.cancel();
     super.dispose();
   }
 
@@ -54,6 +62,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final conv = widget.topic.conversation;
     if (_i >= conv.length) {
       final avg = _scores.isEmpty ? 0 : (_scores.reduce((a, b) => a + b) / _scores.length).round();
+      if (!mounted) return;
+      // A short, light "Did you know?" break now that the whole
+      // conversation is complete, per the client's request — shown before
+      // moving on to the results screen.
+      await showFunFact(context);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => ResultsScreen(topic: widget.topic, percent: avg)),
@@ -85,6 +98,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _listening = true;
       _preparing = needsPrep;
       _error = null;
+      _recordingPath = null;
     });
     if (needsPrep) {
       _prepTicker?.cancel();
@@ -106,7 +120,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
           return;
         }
       }
+      // Recording runs alongside (never instead of) the existing live
+      // transcription below — it's a purely additive, fail-soft capture of
+      // the same utterance, only so it can be played back afterwards. If
+      // it fails to start on this device for any reason, recordingPath
+      // just stays null and no playback button will be offered.
+      await StudentRecorder.instance.start();
       final transcript = await StudentMic.instance.listenOnce();
+      final recordingPath = await StudentRecorder.instance.stop();
       if (transcript.isEmpty) {
         setState(() {
           _error = "Didn't catch that. Tap the microphone and try again.";
@@ -119,10 +140,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _log.add(_Bubble(false, transcript));
         _scores.add(score.percent);
         _lastResult = score;
+        _recordingPath = recordingPath;
         _listening = false;
         _awaitingContinue = true;
       });
     } catch (e) {
+      await StudentRecorder.instance.cancel();
       _prepTicker?.cancel();
       if (e.toString().contains("mic-permission-denied") || e.toString().contains("unavailable")) {
         setState(() {
@@ -282,8 +305,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(color: feedbackColor(_lastResult!.verdict), borderRadius: BorderRadius.circular(12)),
-                          child: Text("${verdictLabel(_lastResult!.verdict)} — ${_lastResult!.percent}%",
-                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text("${verdictLabel(_lastResult!.verdict)} — ${_lastResult!.percent}%",
+                                  style: const TextStyle(fontWeight: FontWeight.w800)),
+                              VoicePlaybackButton(audioPath: _recordingPath),
+                            ],
+                          ),
                         ),
                       ),
                     if (_micUnsupported)
