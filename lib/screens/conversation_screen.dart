@@ -7,7 +7,7 @@ import '../services/student_recorder.dart';
 import '../services/scoring.dart';
 import '../theme/app_theme.dart';
 import '../widgets/fun_fact_dialog.dart';
-import '../widgets/voice_playback_button.dart';
+import '../widgets/voice_replay_control.dart';
 import 'results_screen.dart';
 
 class _Bubble {
@@ -34,10 +34,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ScoreResult? _lastResult;
   String? _error;
   bool _awaitingContinue = false;
-  // Path to a recording of the student's most recent take, so they can
-  // play it back — null whenever recording wasn't available (e.g. denied
-  // permission) or hasn't produced a scored result yet.
-  String? _recordingPath;
+  // Bumped on every successful attempt — passed to VoiceReplayControl as
+  // its turnKey so any previous take's recording/playback state clears
+  // when the student moves to a new attempt or line.
+  int _attempt = 0;
   // See the identical field in repeat_screen.dart: ticks once a second
   // while _preparing is true so the button can show a live elapsed-time
   // count instead of a static label that would look frozen during a
@@ -98,7 +98,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _listening = true;
       _preparing = needsPrep;
       _error = null;
-      _recordingPath = null;
     });
     if (needsPrep) {
       _prepTicker?.cancel();
@@ -120,14 +119,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           return;
         }
       }
-      // Recording runs alongside (never instead of) the existing live
-      // transcription below — it's a purely additive, fail-soft capture of
-      // the same utterance, only so it can be played back afterwards. If
-      // it fails to start on this device for any reason, recordingPath
-      // just stays null and no playback button will be offered.
-      await StudentRecorder.instance.start();
       final transcript = await StudentMic.instance.listenOnce();
-      final recordingPath = await StudentRecorder.instance.stop();
       if (transcript.isEmpty) {
         setState(() {
           _error = "Didn't catch that. Tap the microphone and try again.";
@@ -140,12 +132,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _log.add(_Bubble(false, transcript));
         _scores.add(score.percent);
         _lastResult = score;
-        _recordingPath = recordingPath;
+        _attempt++;
         _listening = false;
         _awaitingContinue = true;
       });
     } catch (e) {
-      await StudentRecorder.instance.cancel();
       _prepTicker?.cancel();
       if (e.toString().contains("mic-permission-denied") || e.toString().contains("unavailable")) {
         setState(() {
@@ -310,7 +301,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             children: [
                               Text("${verdictLabel(_lastResult!.verdict)} — ${_lastResult!.percent}%",
                                   style: const TextStyle(fontWeight: FontWeight.w800)),
-                              VoicePlaybackButton(audioPath: _recordingPath),
+                              VoiceReplayControl(turnKey: _attempt),
                             ],
                           ),
                         ),

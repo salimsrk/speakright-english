@@ -7,7 +7,7 @@ import '../services/student_recorder.dart';
 import '../services/scoring.dart';
 import '../theme/app_theme.dart';
 import '../widgets/fun_fact_dialog.dart';
-import '../widgets/voice_playback_button.dart';
+import '../widgets/voice_replay_control.dart';
 import 'conversation_screen.dart';
 
 class RepeatScreen extends StatefulWidget {
@@ -24,9 +24,10 @@ class _RepeatScreenState extends State<RepeatScreen> {
   ScoreResult? _result;
   String _heard = "";
   String? _error;
-  // Path to a recording of the student's most recent take, for playback —
-  // null whenever recording wasn't available on this device.
-  String? _recordingPath;
+  // Bumped on every successful attempt — passed to VoiceReplayControl as
+  // its turnKey so any previous take's recording/playback state clears
+  // when the student moves to a new line or tries again.
+  int _attempt = 0;
   // Ticks once a second while _preparing is true, purely so the button
   // label below can show a live "Preparing… (12s)" count instead of a
   // static word. On a phone where the one-time voice-model load can now
@@ -51,7 +52,6 @@ class _RepeatScreenState extends State<RepeatScreen> {
       _preparing = needsPrep;
       _error = null;
       _result = null;
-      _recordingPath = null;
     });
     if (needsPrep) {
       _prepTicker?.cancel();
@@ -73,11 +73,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
           return;
         }
       }
-      // Runs alongside the live transcription below purely so the take can
-      // be played back afterwards — fail-soft, never blocks scoring.
-      await StudentRecorder.instance.start();
       final transcript = await StudentMic.instance.listenOnce();
-      final recordingPath = await StudentRecorder.instance.stop();
       if (transcript.isEmpty) {
         setState(() {
           _error = "Didn't catch that — tap the microphone and try again.";
@@ -89,11 +85,10 @@ class _RepeatScreenState extends State<RepeatScreen> {
       setState(() {
         _heard = transcript;
         _result = score;
-        _recordingPath = recordingPath;
+        _attempt++;
         _listening = false;
       });
     } catch (e) {
-      await StudentRecorder.instance.cancel();
       _prepTicker?.cancel();
       setState(() {
         final msg = e.toString();
@@ -262,7 +257,7 @@ class _RepeatScreenState extends State<RepeatScreen> {
                       const SizedBox(height: 4),
                       Text('You said: "$_heard"',
                           style: const TextStyle(fontSize: 13.5, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
-                      VoicePlaybackButton(audioPath: _recordingPath),
+                      VoiceReplayControl(turnKey: _attempt),
                     ],
                   ),
                 ),
