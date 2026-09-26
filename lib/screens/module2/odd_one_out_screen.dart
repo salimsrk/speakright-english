@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fun_fact_dialog.dart';
 
 /// "Spot the odd word out" — tap the word you think doesn't belong, then
 /// see the explanation.
@@ -15,11 +16,15 @@ class _OddOneOutScreenState extends State<OddOneOutScreen> {
   int _i = 0;
   int? _picked;
 
-  void _next() {
+  Future<void> _next() async {
+    // Wrapping back to the first question means the student just finished
+    // a full pass through this quiz — a natural "exercise complete" point.
+    final justFinishedAll = _i == oddOneOutQuestions.length - 1;
     setState(() {
       _picked = null;
       _i = (_i + 1) % oddOneOutQuestions.length;
     });
+    if (justFinishedAll) await showFunFact(context);
   }
 
   @override
