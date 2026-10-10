@@ -13,6 +13,15 @@ class _DemoBubble {
   const _DemoBubble(this.isTeacher, this.text, [this.tamil = ""]);
 }
 
+/// Which part of the one continuous playback we're in. There used to be
+/// two separate players (the lesson narration, and — for dialogue topics
+/// — a second "Sample Conversation" demo with its own Play/Pause button).
+/// The client asked for a single control: tap Play once and it reads the
+/// teacher's intro, then — without the student having to tap anything
+/// else — keeps going straight into the sample conversation (teacher +
+/// friend voices), all under the same Play/Pause/Resume/Replay button.
+enum _Phase { notStarted, intro, demo }
+
 class TeachScreen extends StatefulWidget {
   final Topic topic;
   const TeachScreen({super.key, required this.topic});
@@ -21,18 +30,14 @@ class TeachScreen extends StatefulWidget {
 }
 
 class _TeachScreenState extends State<TeachScreen> {
-  // --- Lesson narration (the "Listen to your Teacher" card) ---
-  int _index = -1;
-  bool _finished = false;
+  _Phase _phase = _Phase.notStarted;
+  int _introIndex = -1;
+  int _demoIndex = -1;
   bool _playing = false;
   bool _paused = false;
+  bool _finished = false;
 
-  // --- Sample conversation demo (dialogue topics only) ---
   final List<_DemoBubble> _demoLog = [];
-  int _demoIndex = 0;
-  bool _demoPlaying = false;
-  bool _demoPaused = false;
-  bool _demoFinished = false;
 
   bool get _showDemo => widget.topic.type == TopicType.dialogue && widget.topic.conversation.isNotEmpty;
 
@@ -42,29 +47,73 @@ class _TeachScreenState extends State<TeachScreen> {
     super.dispose();
   }
 
-  // ---------------- Narration playback ----------------
+  // ---------------- One continuous playback: intro, then demo ----------------
 
-  Future<void> _playFrom(int i) async {
-    if (i >= widget.topic.teacherIntro.length) {
+  Future<void> _advance(_Phase phase, int index) async {
+    if (phase == _Phase.intro) {
+      final intro = widget.topic.teacherIntro;
+      if (index >= intro.length) {
+        if (_showDemo) {
+          _advance(_Phase.demo, 0);
+        } else {
+          _finish();
+        }
+        return;
+      }
       if (!mounted) return;
       setState(() {
-        _finished = true;
-        _playing = false;
+        _phase = _Phase.intro;
+        _introIndex = index;
+        _playing = true;
         _paused = false;
       });
+      await TeacherTts.instance.speak(intro[index]);
+      if (!mounted || _paused) return; // user hit Pause while this line was playing
+      _advance(_Phase.intro, index + 1);
       return;
     }
+
+    // phase == _Phase.demo
+    final conv = widget.topic.conversation;
+    if (index >= conv.length) {
+      _finish();
+      return;
+    }
+    final turn = conv[index];
+    if (!mounted) return;
     setState(() {
-      _index = i;
+      _phase = _Phase.demo;
+      _demoIndex = index;
       _playing = true;
       _paused = false;
+      if (_demoLog.length <= index) _demoLog.add(_DemoBubble(turn.isTeacher, turn.line, turn.tamil));
     });
-    await TeacherTts.instance.speak(widget.topic.teacherIntro[i]);
-    if (!mounted || _paused) return; // user hit Pause while this line was playing
-    _playFrom(i + 1);
+    await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
+    if (!mounted || _paused) return;
+    _advance(_Phase.demo, index + 1);
   }
 
-  void _pauseNarration() {
+  void _finish() {
+    if (!mounted) return;
+    setState(() {
+      _finished = true;
+      _playing = false;
+      _paused = false;
+    });
+  }
+
+  void _playFromStart() {
+    setState(() {
+      _finished = false;
+      _paused = false;
+      _demoLog.clear();
+      _introIndex = -1;
+      _demoIndex = -1;
+    });
+    _advance(_Phase.intro, 0);
+  }
+
+  void _pause() {
     setState(() {
       _paused = true;
       _playing = false;
@@ -72,46 +121,29 @@ class _TeachScreenState extends State<TeachScreen> {
     TeacherTts.instance.stop();
   }
 
-  // ---------------- Sample conversation demo playback ----------------
+  void _resume() {
+    final i = _phase == _Phase.demo ? _demoIndex : _introIndex;
+    _advance(_phase == _Phase.notStarted ? _Phase.intro : _phase, i < 0 ? 0 : i);
+  }
 
-  Future<void> _playDemoFrom(int i) async {
-    final conv = widget.topic.conversation;
-    if (i >= conv.length) {
-      if (!mounted) return;
-      setState(() {
-        _demoFinished = true;
-        _demoPlaying = false;
-        _demoPaused = false;
-      });
-      return;
+  /// The exact text currently showing/spoken — used by the small "replay
+  /// this line" button, which works no matter which phase we're in.
+  String? _currentLineText() {
+    if (_phase == _Phase.demo && _demoIndex >= 0 && _demoIndex < widget.topic.conversation.length) {
+      return widget.topic.conversation[_demoIndex].line;
     }
-    final turn = conv[i];
-    setState(() {
-      _demoIndex = i;
-      _demoPlaying = true;
-      _demoPaused = false;
-      if (_demoLog.length <= i) _demoLog.add(_DemoBubble(turn.isTeacher, turn.line, turn.tamil));
-    });
-    await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
-    if (!mounted || _demoPaused) return;
-    _playDemoFrom(i + 1);
+    if (_introIndex >= 0 && _introIndex < widget.topic.teacherIntro.length) {
+      return widget.topic.teacherIntro[_introIndex];
+    }
+    return null;
   }
 
-  void _pauseDemo() {
-    setState(() {
-      _demoPaused = true;
-      _demoPlaying = false;
-    });
-    TeacherTts.instance.stop();
-  }
-
-  void _restartDemo() {
-    setState(() {
-      _demoLog.clear();
-      _demoFinished = false;
-      _demoPaused = false;
-    });
-    _playDemoFrom(0);
+  TtsSpeaker _currentSpeaker() {
+    if (_phase == _Phase.demo && _demoIndex >= 0 && _demoIndex < widget.topic.conversation.length) {
+      final turn = widget.topic.conversation[_demoIndex];
+      return turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend;
+    }
+    return TtsSpeaker.teacher;
   }
 
   void _goNext() {
@@ -135,37 +167,40 @@ class _TeachScreenState extends State<TeachScreen> {
   @override
   Widget build(BuildContext context) {
     final t = widget.topic;
-    final text = _index >= 0 && _index < t.teacherIntro.length
-        ? t.teacherIntro[_index]
-        : "Tap play to begin the lesson.";
 
-    // Only one of the two players (lesson narration / conversation demo)
-    // may talk at a time — they share the same on-device voice engine, so
-    // letting both start at once would have them cut each other off.
-    final String narrationLabel;
-    final IconData narrationIcon;
-    final VoidCallback? narrationAction;
-    if (_playing) {
-      narrationLabel = "Pause";
-      narrationIcon = Icons.pause;
-      narrationAction = _pauseNarration;
-    } else if (_demoPlaying) {
-      narrationLabel = _paused ? "Resume" : (_finished ? "Play Again" : "Play Lesson");
-      narrationIcon = _paused ? Icons.play_arrow : (_finished ? Icons.replay : Icons.play_arrow);
-      narrationAction = null;
-    } else if (_paused) {
-      narrationLabel = "Resume";
-      narrationIcon = Icons.play_arrow;
-      narrationAction = () => _playFrom(_index);
+    String topText;
+    if (_phase == _Phase.intro && _introIndex >= 0 && _introIndex < t.teacherIntro.length) {
+      topText = t.teacherIntro[_introIndex];
+    } else if (_phase == _Phase.demo) {
+      topText = "Listen to the conversation below 👇";
     } else if (_finished) {
-      narrationLabel = "Play Again";
-      narrationIcon = Icons.replay;
-      narrationAction = () => _playFrom(0);
+      topText = _showDemo ? "Great! You heard the lesson and the conversation." : "Great! You heard the whole lesson.";
     } else {
-      narrationLabel = "Play Lesson";
-      narrationIcon = Icons.play_arrow;
-      narrationAction = () => _playFrom(0);
+      topText = "Tap play to begin the lesson.";
     }
+
+    final String playLabel;
+    final IconData playIcon;
+    final VoidCallback? playAction;
+    if (_playing) {
+      playLabel = "Pause";
+      playIcon = Icons.pause;
+      playAction = _pause;
+    } else if (_paused) {
+      playLabel = "Resume";
+      playIcon = Icons.play_arrow;
+      playAction = _resume;
+    } else if (_finished) {
+      playLabel = "Play Again";
+      playIcon = Icons.replay;
+      playAction = _playFromStart;
+    } else {
+      playLabel = _showDemo ? "Play Lesson & Conversation" : "Play Lesson";
+      playIcon = Icons.play_arrow;
+      playAction = _playFromStart;
+    }
+
+    final currentLine = _currentLineText();
 
     return Scaffold(
       body: SafeArea(
@@ -191,7 +226,7 @@ class _TeachScreenState extends State<TeachScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: cardDecoration(),
-                              child: Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5)),
+                              child: Text(topText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.5)),
                             ),
                           ),
                         ],
@@ -203,28 +238,28 @@ class _TeachScreenState extends State<TeachScreen> {
                       child: Row(
                         children: [
                           IconButton.filled(
-                            onPressed: _index >= 0 && !_playing && !_demoPlaying
-                                ? () => TeacherTts.instance.speak(t.teacherIntro[_index])
+                            onPressed: !_playing && currentLine != null
+                                ? () => TeacherTts.instance.speak(currentLine, speaker: _currentSpeaker())
                                 : null,
                             icon: const Icon(Icons.replay),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: narrationAction,
-                              icon: Icon(narrationIcon),
-                              label: Text(narrationLabel),
+                              onPressed: playAction,
+                              icon: Icon(playIcon),
+                              label: Text(playLabel, textAlign: TextAlign.center),
                               style: FilledButton.styleFrom(
                                 backgroundColor: t.color,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
-                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    if (_showDemo) ...[
+                    if (_showDemo && (_demoLog.isNotEmpty || _phase == _Phase.demo)) ...[
                       const SizedBox(height: 26),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -240,7 +275,7 @@ class _TeachScreenState extends State<TeachScreen> {
                       const SizedBox(height: 4),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: Text("Listen to the Teacher and a Friend have this chat — two different voices.",
+                        child: Text("The Teacher and a Friend having this chat — two different voices.",
                             style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft)),
                       ),
                       const SizedBox(height: 12),
@@ -251,36 +286,6 @@ class _TeachScreenState extends State<TeachScreen> {
                             children: _demoLog.map((b) => _demoBubble(b)).toList(),
                           ),
                         ),
-                      const SizedBox(height: 10),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: OutlinedButton.icon(
-                          onPressed: _demoPlaying
-                              ? _pauseDemo
-                              : _playing
-                                  ? null
-                                  : _demoPaused
-                                      ? () => _playDemoFrom(_demoIndex)
-                                      : _demoFinished
-                                          ? _restartDemo
-                                          : () => _playDemoFrom(0),
-                          icon: Icon(_demoPlaying
-                              ? Icons.pause
-                              : _demoPaused
-                                  ? Icons.play_arrow
-                                  : _demoFinished
-                                      ? Icons.replay
-                                      : Icons.play_arrow),
-                          label: Text(_demoPlaying
-                              ? "Pause"
-                              : _demoPaused
-                                  ? "Resume"
-                                  : _demoFinished
-                                      ? "Play Again"
-                                      : "Play Conversation"),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                        ),
-                      ),
                     ],
                   ],
                 ),
