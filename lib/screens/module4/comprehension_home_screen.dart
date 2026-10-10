@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/comprehension_content.dart';
+import '../../services/lesson_progress_store.dart';
 import '../../theme/app_theme.dart';
 import 'comprehension_passage_screen.dart';
 
@@ -71,7 +72,11 @@ class ComprehensionHomeScreen extends StatelessWidget {
                         emoji: p.emoji,
                         title: "${i + 1}. ${p.title}",
                         subtitle: p.tamilTitle.isNotEmpty ? p.tamilTitle : "${p.questions.length} questions",
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ComprehensionPassageScreen(passage: p))),
+                        onTap: () {
+                          // ignore: unawaited_futures
+                          LessonProgressStore.markViewed("m4:passage:$i");
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ComprehensionPassageScreen(passage: p)));
+                        },
                       ),
                     );
                   },
