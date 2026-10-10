@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
+import '../../services/lesson_progress_store.dart';
 import '../../theme/app_theme.dart';
 import 'confusables_screen.dart';
 import 'fun_with_words_screen.dart';
@@ -74,7 +75,11 @@ class VocabHomeScreen extends StatelessWidget {
                         emoji: g.emoji,
                         title: g.title,
                         subtitle: "${g.pairs.length} items",
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WordGroupScreen(group: g))),
+                        onTap: () {
+                          // ignore: unawaited_futures
+                          LessonProgressStore.markViewed("m2:group:$i");
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => WordGroupScreen(group: g)));
+                        },
                       ),
                     );
                   },
@@ -96,21 +101,33 @@ class VocabHomeScreen extends StatelessWidget {
                     emoji: "🤔",
                     title: "Confusable / Troublesome Words",
                     subtitle: "${confusables.length} pairs",
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConfusablesScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m2:confusables");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConfusablesScreen()));
+                    },
                   ),
                   const SizedBox(height: 10),
                   _SectionTile(
                     emoji: "🔤",
                     title: "Pronunciation & Syllables",
                     subtitle: "Silent letters, syllable groups",
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PronunciationScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m2:pronunciation");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PronunciationScreen()));
+                    },
                   ),
                   const SizedBox(height: 10),
                   _SectionTile(
                     emoji: "🎲",
                     title: "Fun with Words",
                     subtitle: "Puzzles, quizzes & matching games",
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FunWithWordsScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m2:funwithwords");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FunWithWordsScreen()));
+                    },
                   ),
                 ]),
               ),
