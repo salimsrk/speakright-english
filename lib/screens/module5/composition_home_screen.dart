@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/lesson_progress_store.dart';
 import '../../theme/app_theme.dart';
 import 'reading_passages_screen.dart';
 import 'model_letters_screen.dart';
@@ -62,7 +63,11 @@ class CompositionHomeScreen extends StatelessWidget {
                     title: "Improve Your Reading Skill",
                     subtitle: "5 passages to read aloud, fully translated in Tamil too",
                     color: const Color(0xFF3B82F6),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReadingPassagesScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m5:reading");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReadingPassagesScreen()));
+                    },
                   ),
                   const SizedBox(height: 12),
                   _SectionTile(
@@ -70,7 +75,11 @@ class CompositionHomeScreen extends StatelessWidget {
                     title: "Model Letters",
                     subtitle: "Format checklist + 2 sample official letters",
                     color: const Color(0xFF10B981),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ModelLettersScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m5:letters");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ModelLettersScreen()));
+                    },
                   ),
                   const SizedBox(height: 12),
                   _SectionTile(
@@ -78,7 +87,11 @@ class CompositionHomeScreen extends StatelessWidget {
                     title: "Developing Hints",
                     subtitle: "5 hints to develop into stories, with a sample story each",
                     color: const Color(0xFFF59E0B),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DevelopingHintsScreen())),
+                    onTap: () {
+                      // ignore: unawaited_futures
+                      LessonProgressStore.markViewed("m5:hints");
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DevelopingHintsScreen()));
+                    },
                   ),
                 ],
               ),
