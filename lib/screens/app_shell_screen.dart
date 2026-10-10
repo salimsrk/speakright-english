@@ -24,12 +24,12 @@ class AppShellScreen extends StatefulWidget {
 class _AppShellScreenState extends State<AppShellScreen> {
   int _index = 0;
 
-  void _goToLessons() => setState(() => _index = 1);
+  void _goToTab(int i) => setState(() => _index = i);
 
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      HomeTabScreen(onStartLearning: _goToLessons),
+      HomeTabScreen(onNavigateToTab: _goToTab),
       const LessonsTabScreen(),
       const ProgressTabScreen(),
       const SettingsTabScreen(),

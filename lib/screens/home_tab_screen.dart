@@ -1,14 +1,28 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/app_progress.dart';
+import '../services/scoring.dart';
+import '../services/student_mic.dart';
+import '../services/teacher_tts.dart';
 import '../theme/app_theme.dart';
 
-/// The shell's "Home" tab — a welcome header, a small row of feature
-/// highlights, and a "Start Learning" button that jumps straight to the
-/// Lessons tab. Purely a landing page; all real navigation into modules
-/// happens from the Lessons tab.
+/// The shell's "Home" tab.
+///
+/// The first version of this screen (built from the client's reference
+/// screenshots) had a 2x2 grid of "Speak / Teacher / Offline / Tracked"
+/// cards that were purely decorative — tapping them did nothing, which
+/// defeats the point: a feature a visitor can't actually try doesn't tell
+/// them why it's there. This version replaces that with real, working
+/// pieces instead:
+///   - "Try it — right now": an actual live demo using the same
+///     TeacherTts + StudentMic + scoring pipeline every real lesson uses —
+///     hear a line, say it back, get an instant score, right here on Home.
+///   - "Offline": tapping it runs a real connectivity check and reports
+///     what it actually found, rather than just asserting the claim.
+///   - "Tracked": tapping it jumps straight to the Progress tab.
 class HomeTabScreen extends StatefulWidget {
-  final VoidCallback onStartLearning;
-  const HomeTabScreen({super.key, required this.onStartLearning});
+  final void Function(int tabIndex) onNavigateToTab;
+  const HomeTabScreen({super.key, required this.onNavigateToTab});
 
   @override
   State<HomeTabScreen> createState() => _HomeTabScreenState();
@@ -17,16 +31,89 @@ class HomeTabScreen extends StatefulWidget {
 class _HomeTabScreenState extends State<HomeTabScreen> {
   AppProgressSnapshot? _snapshot;
 
+  // --- "Try it — right now" live demo ---
+  static const String _demoSentence = "Good morning! How are you today?";
+  static const String _demoSentenceTamil = "காலை வணக்கம்! இன்று எப்படி இருக்கீங்க?";
+  bool _demoListening = false;
+  String? _demoHeard;
+  String? _demoError;
+  ScoreResult? _demoResult;
+
+  // --- "Offline" live connectivity check ---
+  bool _checkingOffline = false;
+  String? _offlineResultText;
+
   @override
   void initState() {
     super.initState();
     _refresh();
   }
 
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     final s = await AppProgress.load();
     if (!mounted) return;
     setState(() => _snapshot = s);
+  }
+
+  Future<void> _tryDemoMic() async {
+    setState(() {
+      _demoListening = true;
+      _demoError = null;
+      _demoResult = null;
+    });
+    try {
+      final transcript = await StudentMic.instance.listenOnce(timeout: const Duration(seconds: 10));
+      if (!mounted) return;
+      if (transcript.isEmpty) {
+        setState(() {
+          _demoError = "Didn't catch that — tap the mic and try again.";
+          _demoListening = false;
+        });
+        return;
+      }
+      final score = scoreReading(_demoSentence, transcript);
+      setState(() {
+        _demoHeard = transcript;
+        _demoResult = score;
+        _demoListening = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _demoError = e.toString().contains("mic-permission-denied")
+            ? "Please allow microphone access to try this."
+            : "Couldn't start — please try again.";
+        _demoListening = false;
+      });
+    }
+  }
+
+  Future<void> _checkOfflineCapability() async {
+    setState(() {
+      _checkingOffline = true;
+      _offlineResultText = null;
+    });
+    bool online;
+    try {
+      final result = await InternetAddress.lookup('google.com').timeout(const Duration(seconds: 3));
+      online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      online = false;
+    }
+    if (!mounted) return;
+    setState(() {
+      _checkingOffline = false;
+      _offlineResultText = online
+          ? "You're online right now — but you don't need to be. Every lesson already works with zero internet. ✓"
+          : "You're offline right now — and SpeakRight works exactly the same. Nothing here needs internet. ✓";
+    });
   }
 
   @override
@@ -88,32 +175,31 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
               ),
               const Padding(
                 padding: EdgeInsets.fromLTRB(18, 22, 18, 4),
-                child: Text("Why students like it",
+                child: Text("Try it before you start",
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
               ),
               Padding(
-                padding: const EdgeInsets.all(18),
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 1.15,
-                  children: const [
-                    _FeatureCard(icon: Icons.mic, label: "Speak", subtitle: "Practice out loud, get scored instantly"),
-                    _FeatureCard(icon: Icons.record_voice_over, label: "Teacher", subtitle: "A patient voice guides every lesson"),
-                    _FeatureCard(icon: Icons.cloud_off, label: "Offline", subtitle: "Works with no internet connection"),
-                    _FeatureCard(icon: Icons.insights, label: "Tracked", subtitle: "See your progress across every module"),
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+                child: _demoCard(),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _offlineCard()),
+                    const SizedBox(width: 14),
+                    Expanded(child: _trackedCard(completed, total)),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+                padding: const EdgeInsets.fromLTRB(18, 24, 18, 0),
                 child: SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: widget.onStartLearning,
+                    onPressed: () => widget.onNavigateToTab(1),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -130,34 +216,171 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
       ),
     );
   }
-}
 
-class _FeatureCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  const _FeatureCard({required this.icon, required this.label, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _demoCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(),
+      padding: const EdgeInsets.all(18),
+      decoration: cardDecoration(borderTop: AppColors.primary),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-            alignment: Alignment.center,
-            child: Icon(icon, color: AppColors.primary, size: 22),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: const Icon(Icons.mic, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text("Try it — right now",
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink)),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.ink)),
-          const SizedBox(height: 3),
-          Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.inkSoft, height: 1.3)),
+          const SizedBox(height: 6),
+          const Text("No sign-up, no lesson to open — hear the Teacher, then say it back.",
+              style: TextStyle(fontSize: 12, color: AppColors.inkSoft, height: 1.3)),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(12)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(_demoSentence, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                tamilMeaning(_demoSentenceTamil, topGap: 4),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => TeacherTts.instance.speak(_demoSentence),
+                  icon: const Icon(Icons.volume_up, size: 18),
+                  label: const Text("Hear Teacher"),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _demoListening ? null : _tryDemoMic,
+                  icon: const Icon(Icons.mic, size: 18),
+                  label: Text(_demoListening ? "Listening…" : "Your turn"),
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 12)),
+                ),
+              ),
+            ],
+          ),
+          if (_demoError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: AppColors.warnBg, borderRadius: BorderRadius.circular(10)),
+                child: Text(_demoError!, style: const TextStyle(fontSize: 12.5, color: Color(0xFF92400E))),
+              ),
+            ),
+          if (_demoResult != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: feedbackColor(_demoResult!.verdict), borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("${verdictLabel(_demoResult!.verdict)} — ${_demoResult!.percent}%",
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                    const SizedBox(height: 3),
+                    Text('You said: "$_demoHeard"',
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
+                    const SizedBox(height: 6),
+                    const Text("That's exactly how every real lesson is scored — try a full one below.",
+                        style: TextStyle(fontSize: 11.5, color: AppColors.inkSoft)),
+                  ],
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _offlineCard() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: _checkingOffline ? null : _checkOfflineCapability,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: cardDecoration(borderTop: AppColors.success),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: AppColors.success.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                  alignment: Alignment.center,
+                  child: Icon(_checkingOffline ? Icons.hourglass_top : Icons.cloud_off, color: AppColors.success, size: 18),
+                ),
+                const Spacer(),
+                if (!_checkingOffline) const Icon(Icons.touch_app, size: 14, color: AppColors.inkSoft),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text("Offline", style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink)),
+            const SizedBox(height: 3),
+            Text(
+              _checkingOffline ? "Checking right now…" : (_offlineResultText ?? "Tap to check — works with no internet"),
+              style: const TextStyle(fontSize: 10.5, color: AppColors.inkSoft, height: 1.3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _trackedCard(int completed, int total) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => widget.onNavigateToTab(2),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: cardDecoration(borderTop: AppColors.gold),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.insights, color: AppColors.gold, size: 18),
+                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, size: 16, color: AppColors.inkSoft),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text("Tracked", style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink)),
+            const SizedBox(height: 3),
+            Text(
+              total > 0 ? "$completed of $total lessons — tap to see" : "See your progress across every module",
+              style: const TextStyle(fontSize: 10.5, color: AppColors.inkSoft, height: 1.3),
+            ),
+          ],
+        ),
       ),
     );
   }
