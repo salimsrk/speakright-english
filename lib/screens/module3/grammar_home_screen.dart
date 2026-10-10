@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/grammar_content.dart';
+import '../../services/lesson_progress_store.dart';
 import '../../theme/app_theme.dart';
 import 'grammar_topic_screen.dart';
 
@@ -74,7 +75,11 @@ class GrammarHomeScreen extends StatelessWidget {
                         emoji: t.emoji,
                         title: t.title,
                         subtitle: t.tamilTitle.isNotEmpty ? t.tamilTitle : "$itemCount items",
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GrammarTopicScreen(topic: t))),
+                        onTap: () {
+                          // ignore: unawaited_futures
+                          LessonProgressStore.markViewed("m3:topic:$i");
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => GrammarTopicScreen(topic: t)));
+                        },
                       ),
                     );
                   },
