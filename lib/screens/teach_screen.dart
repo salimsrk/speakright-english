@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/topic.dart';
 import '../services/teacher_tts.dart';
@@ -22,6 +23,23 @@ class _DemoBubble {
 /// friend voices), all under the same Play/Pause/Resume/Replay button.
 enum _Phase { notStarted, intro, demo }
 
+/// One entry in the flat "timeline" behind the progress bar: every intro
+/// line, then (for dialogue topics) every conversation turn, with a rough
+/// estimated spoken duration used only to animate that segment's fill —
+/// not an exact position. The on-device TTS engine has no API to report
+/// "how many seconds into this sentence am I" or to resume audio from an
+/// arbitrary mid-sentence timestamp, so an exact, continuously-draggable
+/// video-style seek bar isn't something this can honestly offer. Instead
+/// the bar is a row of per-line segments — like Instagram/WhatsApp
+/// Status — which is upfront about what it actually does: jump straight
+/// to an exact line, not an approximate second.
+class _TimelineItem {
+  final _Phase phase;
+  final int index;
+  final double estSeconds;
+  const _TimelineItem({required this.phase, required this.index, required this.estSeconds});
+}
+
 class TeachScreen extends StatefulWidget {
   final Topic topic;
   const TeachScreen({super.key, required this.topic});
@@ -39,17 +57,101 @@ class _TeachScreenState extends State<TeachScreen> {
 
   final List<_DemoBubble> _demoLog = [];
 
+  // --- Story-style step progress bar ---
+  List<_TimelineItem> _timeline = [];
+  final Stopwatch _lineStopwatch = Stopwatch();
+  Timer? _tickTimer;
+  // Bumped every time a NEW playback chain starts outside the normal
+  // "next line" flow (i.e. the student tapped a different segment while a
+  // line was still speaking) — the in-flight _advance() recursion checks
+  // this and quietly stops instead of racing the freshly-started chain
+  // for the TTS engine.
+  int _playToken = 0;
+
   bool get _showDemo => widget.topic.type == TopicType.dialogue && widget.topic.conversation.isNotEmpty;
 
   @override
+  void initState() {
+    super.initState();
+    _buildTimeline();
+    _tickTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (_playing && mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
+    _tickTimer?.cancel();
     TeacherTts.instance.stop();
     super.dispose();
+  }
+
+  // ---------------- Step-bar timeline (estimated per-line durations) ----------------
+
+  void _buildTimeline() {
+    // ~2.3 words/second is a typical clear-speech pace; the Settings
+    // screen's Teacher Voice Speed multiplier scales it the same way it
+    // scales the actual TTS rate, so each segment's fill still roughly
+    // tracks real playback whether the student has it set to Slow or Fast.
+    final wps = (2.3 * TeacherTts.instance.rateMultiplier).clamp(0.8, 5.0);
+    final items = <_TimelineItem>[];
+    for (int i = 0; i < widget.topic.teacherIntro.length; i++) {
+      items.add(_TimelineItem(phase: _Phase.intro, index: i, estSeconds: _estimateLineSeconds(widget.topic.teacherIntro[i], wps)));
+    }
+    if (_showDemo) {
+      for (int i = 0; i < widget.topic.conversation.length; i++) {
+        items.add(_TimelineItem(phase: _Phase.demo, index: i, estSeconds: _estimateLineSeconds(widget.topic.conversation[i].line, wps)));
+      }
+    }
+    _timeline = items;
+  }
+
+  double _estimateLineSeconds(String text, double wps) {
+    final words = text.trim().split(RegExp(r"\s+")).where((w) => w.isNotEmpty).length;
+    return (words / wps + 0.5).clamp(0.8, 60.0);
+  }
+
+  int _currentTimelineIndex() {
+    final idx = _phase == _Phase.demo ? _demoIndex : _introIndex;
+    if (idx < 0) return -1;
+    return _timeline.indexWhere((it) => it.phase == _phase && it.index == idx);
+  }
+
+  /// How full segment [i] of the step bar should be right now: 1.0 for a
+  /// line already finished, 0.0 for one not reached yet, and a live
+  /// fraction for whichever line is currently speaking.
+  double _segmentFill(int i) {
+    if (_finished) return 1.0;
+    final current = _currentTimelineIndex();
+    if (current < 0) return 0.0;
+    if (i < current) return 1.0;
+    if (i > current) return 0.0;
+    final item = _timeline[i];
+    final lineElapsed = _lineStopwatch.elapsed.inMilliseconds / 1000.0;
+    return (lineElapsed / item.estSeconds).clamp(0.0, 1.0);
+  }
+
+  String _currentPartLabel() {
+    if (_finished) return "Finished — ${_timeline.length} of ${_timeline.length}";
+    final current = _currentTimelineIndex();
+    if (current < 0) return "${_timeline.length} parts — tap any bar to jump";
+    return "Part ${current + 1} of ${_timeline.length}";
+  }
+
+  /// Jumps playback straight to this exact line — an honest "exact line",
+  /// not a video-style "approximate second" seek, since the TTS engine
+  /// underneath has no concept of a mid-sentence timestamp to resume from.
+  void _seekToLine(_TimelineItem target) {
+    _playToken++; // invalidate whatever line is currently mid-speech
+    TeacherTts.instance.stop();
+    setState(() => _finished = false);
+    _advance(target.phase, target.index);
   }
 
   // ---------------- One continuous playback: intro, then demo ----------------
 
   Future<void> _advance(_Phase phase, int index) async {
+    final myToken = _playToken;
     if (phase == _Phase.intro) {
       final intro = widget.topic.teacherIntro;
       if (index >= intro.length) {
@@ -67,8 +169,13 @@ class _TeachScreenState extends State<TeachScreen> {
         _playing = true;
         _paused = false;
       });
+      _lineStopwatch
+        ..reset()
+        ..start();
       await TeacherTts.instance.speak(intro[index]);
-      if (!mounted || _paused) return; // user hit Pause while this line was playing
+      // Stop if the user hit Pause, or jumped to a different segment,
+      // while this line was playing.
+      if (!mounted || _paused || myToken != _playToken) return;
       _advance(_Phase.intro, index + 1);
       return;
     }
@@ -88,8 +195,11 @@ class _TeachScreenState extends State<TeachScreen> {
       _paused = false;
       if (_demoLog.length <= index) _demoLog.add(_DemoBubble(turn.isTeacher, turn.line, turn.tamil));
     });
+    _lineStopwatch
+      ..reset()
+      ..start();
     await TeacherTts.instance.speak(turn.line, speaker: turn.isTeacher ? TtsSpeaker.teacher : TtsSpeaker.friend);
-    if (!mounted || _paused) return;
+    if (!mounted || _paused || myToken != _playToken) return;
     _advance(_Phase.demo, index + 1);
   }
 
@@ -103,6 +213,7 @@ class _TeachScreenState extends State<TeachScreen> {
   }
 
   void _playFromStart() {
+    _playToken++;
     setState(() {
       _finished = false;
       _paused = false;
@@ -259,8 +370,12 @@ class _TeachScreenState extends State<TeachScreen> {
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: _storyBar(t.color),
+                    ),
                     if (_showDemo && (_demoLog.isNotEmpty || _phase == _Phase.demo)) ...[
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 14),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 18),
                         child: Row(
@@ -325,6 +440,54 @@ class _TeachScreenState extends State<TeachScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// The story-style step progress bar under the main Play/Pause button —
+  /// one segment per line (intro line or conversation turn). The current
+  /// line's segment fills as it's spoken; tapping any segment jumps
+  /// straight to that exact line. Modelled on Instagram/WhatsApp Status,
+  /// which is a pattern students already know from daily use.
+  Widget _storyBar(Color color) {
+    if (_timeline.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              for (int i = 0; i < _timeline.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _seekToLine(_timeline[i]),
+                    child: Container(
+                      height: 22,
+                      alignment: Alignment.center,
+                      child: Container(
+                        height: 5,
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(color: color.withOpacity(0.18), borderRadius: BorderRadius.circular(3)),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: _segmentFill(i),
+                            child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(_currentPartLabel(),
+              style: const TextStyle(fontSize: 11.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
