@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Which "character" is speaking a line. We only have one real TTS engine
 /// (the phone's own on-device voice), so we tell the two characters apart
@@ -20,8 +21,40 @@ class TeacherTts {
   bool _ready = false;
   Completer<void>? _speakCompleter;
 
+  // --- Settings-screen "Teacher Voice Speed" control ---
+  // A multiplier on top of the base rates below (not a replacement for
+  // them) so the carefully-tuned teacher/friend pitch difference is kept
+  // no matter what speed the student picks. Persisted so the choice
+  // survives app restarts. 1.0 = the original "Normal" behavior this app
+  // always had.
+  static const _rateKey = "speakright_tts_rate_multiplier_v1";
+  double _rateMultiplier = 1.0;
+  double get rateMultiplier => _rateMultiplier;
+
+  Future<void> setRateMultiplier(double value) async {
+    _rateMultiplier = value.clamp(0.5, 1.5);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_rateKey, _rateMultiplier);
+    } catch (e) {
+      // Non-fatal — the new speed still applies for the rest of this
+      // session, it just won't be remembered next time the app opens.
+    }
+  }
+
+  Future<void> _loadRateMultiplier() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getDouble(_rateKey);
+      if (saved != null) _rateMultiplier = saved.clamp(0.5, 1.5);
+    } catch (e) {
+      // Non-fatal — just use the default (1.0, "Normal").
+    }
+  }
+
   Future<void> init() async {
     if (_ready) return;
+    await _loadRateMultiplier();
     await _selectIndianEnglish();
     await _tts.awaitSpeakCompletion(true);
     // We deliberately do NOT rely on the Future returned by the native
@@ -124,12 +157,16 @@ class TeacherTts {
   Future<void> speak(String text, {TtsSpeaker speaker = TtsSpeaker.teacher}) async {
     await init();
     await _tts.stop();
+    // Base rates stay exactly as originally tuned; rateMultiplier (from
+    // the Settings screen) scales on top of them. flutter_tts expects a
+    // rate roughly in 0.0-1.0 on Android, so the final value is clamped
+    // to stay in range even at the fastest 1.5x setting.
     if (speaker == TtsSpeaker.friend) {
       await _tts.setPitch(1.35);
-      await _tts.setSpeechRate(0.46);
+      await _tts.setSpeechRate((0.46 * _rateMultiplier).clamp(0.1, 1.0));
     } else {
       await _tts.setPitch(1.0);
-      await _tts.setSpeechRate(0.42);
+      await _tts.setSpeechRate((0.42 * _rateMultiplier).clamp(0.1, 1.0));
     }
     final completer = Completer<void>();
     _speakCompleter = completer;
