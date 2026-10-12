@@ -96,9 +96,12 @@ class TeacherTts {
   /// capabilities of the device" caveat we've already flagged to the client.
   Future<void> _selectIndianEnglish() async {
     const preferredLocales = ["en-IN", "en-GB", "en-US"];
+    _activeLocaleConfirmed = false;
 
     // 1) Try to bind an explicit voice whose locale matches, best candidate
-    // first. This is the most reliable option when it's available.
+    // first. This is the most reliable option when it's available — a
+    // voice only shows up in getVoices() if its data is genuinely present
+    // on the device, so a match here is a real, confirmed install.
     try {
       final voices = await _tts.getVoices;
       if (voices is List) {
@@ -112,6 +115,7 @@ class TeacherTts {
                 try {
                   await _tts.setVoice({"name": (v["name"] ?? "").toString(), "locale": locale});
                   _activeLocale = candidate;
+                  _activeLocaleConfirmed = true;
                   return;
                 } catch (_) {
                   // This particular voice failed to bind — keep looking.
@@ -125,7 +129,10 @@ class TeacherTts {
       // getVoices/setVoice not supported on this platform — fall through.
     }
 
-    // 2) Fall back to setLanguage with the same preference order.
+    // 2) Fall back to setLanguage with the same preference order. Less
+    // reliable than step 1 — some engines report a locale as "available"
+    // here even when only its default (usually US) voice data is actually
+    // downloaded — so this is NOT marked as confirmed.
     try {
       final languages = await _tts.getLanguages;
       final available = (languages is List) ? languages.cast<dynamic>().map((e) => e.toString()).toList() : <String>[];
@@ -137,8 +144,10 @@ class TeacherTts {
         }
       }
       // 3) Neither list told us anything useful — still ask for en-IN
-      // directly. Some engines accept setLanguage for a locale that isn't
-      // enumerated by getLanguages/getVoices but is genuinely installed.
+      // directly as a last, unconfirmed attempt. Some engines accept
+      // setLanguage for a locale that isn't enumerated by
+      // getLanguages/getVoices but is genuinely installed; others silently
+      // keep speaking in whatever voice was already active.
       await _tts.setLanguage("en-IN");
       _activeLocale = "en-IN";
     } catch (e) {
@@ -147,9 +156,25 @@ class TeacherTts {
     }
   }
 
+  /// Re-detects the best available voice without restarting the app —
+  /// lets the Settings screen's "Re-check" button pick up a voice pack
+  /// the student just installed from the phone's own Settings app, with
+  /// no app reinstall needed.
+  Future<void> recheckVoice() async {
+    await init(); // ensures the engine itself is initialized at least once
+    await _selectIndianEnglish();
+  }
+
   /// The locale we ended up selecting (best-effort — for diagnostics only).
   String? _activeLocale;
   String? get activeLocale => _activeLocale;
+
+  /// True only when [activeLocale] was confirmed against the engine's own
+  /// list of installed voices (step 1 above) — not just requested blind.
+  /// Shown in Settings so "says English (India)" and "genuinely confirmed
+  /// English (India) is installed" aren't presented as the same thing.
+  bool _activeLocaleConfirmed = false;
+  bool get activeLocaleConfirmed => _activeLocaleConfirmed;
 
   /// Speaks [text] as the given [speaker] and completes once the phone has
   /// finished saying it (or the speech was paused/stopped/errored).
