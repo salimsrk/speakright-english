@@ -12,7 +12,7 @@ class SpeakRightApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "SpeakRight English",
+      title: "Kalvi40",
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: const AppShellScreen(),
