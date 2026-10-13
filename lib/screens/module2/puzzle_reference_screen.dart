@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../data/vocab_content.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 
 /// Reference screen for the three stand-alone puzzles from the book that
 /// are pictures rather than plain text (missing-letters grid, the bottle
@@ -17,6 +20,13 @@ class PuzzleReferenceScreen extends StatefulWidget {
 
 class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
   final Set<int> _revealed = {};
+
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   Future<void> _reveal(int i) async {
     setState(() => _revealed.add(i));
@@ -79,6 +89,8 @@ class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
                         const SizedBox(height: 8),
                         Text(p.description, style: const TextStyle(fontSize: 13.5, height: 1.4)),
                         tamilMeaning(p.tamilDescription, topGap: 6),
+                        const SizedBox(height: 10),
+                        SpeakAndPracticeBar(text: p.description),
                         const SizedBox(height: 10),
                         if (revealed)
                           Container(
