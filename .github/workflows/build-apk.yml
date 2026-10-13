@@ -335,9 +335,25 @@ jobs:
                   print(f"Patched {gradle_path}: {', '.join(changes)}")
           PY
 
-      - name: Build release APK
+      # By default `flutter build apk` bundles native engine code for THREE
+      # CPU architectures (armeabi-v7a, arm64-v8a, x86_64) into one "fat"
+      # APK — that tripling, not our own assets (which are a few KB total),
+      # is why the APK was ~48MB. x86_64 only matters for emulators, never
+      # real phones, and arm64-v8a alone already covers virtually every
+      # Android phone sold since ~2017. --target-platform restricts the
+      # build to just that one architecture, cutting the APK to roughly a
+      # third of its previous size with zero behavior change — it's the
+      # same app code, just not carrying two extra copies of the engine
+      # for architectures this phone will never use. (The remaining size
+      # is the Flutter engine itself, which has a real floor well above a
+      # couple of MB — there's no further easy win beyond this.)
+      - name: Build release APK (arm64 only — covers virtually all real phones)
         working-directory: build_app
-        run: flutter build apk --release
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Report the final APK size
+        working-directory: build_app
+        run: ls -lh build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
