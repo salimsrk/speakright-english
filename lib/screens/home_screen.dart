@@ -122,7 +122,9 @@ class _Header extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
               const SizedBox(width: 10),
-              const Text("🗣️", style: TextStyle(fontSize: 24)),
+              ClipOval(
+                child: Image.asset("assets/icon/app_icon.png", width: 30, height: 30, fit: BoxFit.cover),
+              ),
               const SizedBox(width: 8),
               const Text("Kalvi40",
                   style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),

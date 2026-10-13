@@ -142,11 +142,13 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Text("🗣️", style: TextStyle(fontSize: 28)),
-                        SizedBox(width: 8),
-                        Expanded(
+                        ClipOval(
+                          child: Image.asset("assets/icon/app_icon.png", width: 34, height: 34, fit: BoxFit.cover),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
                           child: Text("Kalvi40",
                               style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
                         ),
