@@ -4,6 +4,7 @@ import '../../services/student_mic.dart';
 import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 import '../module2/mcq_screen.dart';
 import 'grammar_fill_screen.dart';
 
@@ -79,8 +80,23 @@ class _GrammarTopicScreenState extends State<GrammarTopicScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(topic.intro, style: const TextStyle(fontSize: 14, height: 1.45)),
-                          if (topic.tamilIntro.isNotEmpty) tamilMeaning(topic.tamilIntro, topGap: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: Text(topic.intro, style: const TextStyle(fontSize: 14, height: 1.45))),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: topic.intro),
+                            ],
+                          ),
+                          if (topic.tamilIntro.isNotEmpty)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: tamilMeaning(topic.tamilIntro, topGap: 8)),
+                                const SizedBox(width: 6),
+                                TtsSpeakerButton(text: topic.tamilIntro, tamil: true),
+                              ],
+                            ),
                           const SizedBox(height: 12),
                           SpeakAndPracticeBar(text: topic.intro),
                         ],
@@ -99,9 +115,24 @@ class _GrammarTopicScreenState extends State<GrammarTopicScreen> {
                             Text(p.tamilHeading, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
                           if (p.explanation.isNotEmpty) ...[
                             const SizedBox(height: 8),
-                            Text(p.explanation, style: const TextStyle(fontSize: 13, height: 1.4)),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: Text(p.explanation, style: const TextStyle(fontSize: 13, height: 1.4))),
+                                const SizedBox(width: 6),
+                                TtsSpeakerButton(text: p.explanation),
+                              ],
+                            ),
                           ],
-                          if (p.tamilExplanation.isNotEmpty) tamilMeaning(p.tamilExplanation, topGap: 6),
+                          if (p.tamilExplanation.isNotEmpty)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: tamilMeaning(p.tamilExplanation, topGap: 6)),
+                                const SizedBox(width: 6),
+                                TtsSpeakerButton(text: p.tamilExplanation, tamil: true),
+                              ],
+                            ),
                           if (p.examples.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             ...p.examples.map(
