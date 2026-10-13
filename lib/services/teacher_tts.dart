@@ -75,10 +75,22 @@ class TeacherTts {
   TtsVoiceOption? _selectedVoice;
   TtsVoiceOption? get selectedVoice => _selectedVoice;
 
+  // --- Tamil speech (for the Tamil-translation speaker button) ---
+  // A confirmed-installed Tamil voice, found the same way the English
+  // picker finds Indian voices — only trusted if getVoices() itself lists
+  // it, since that's the only reliable signal the voice data really is on
+  // this phone. Not every phone has one; see speakTamil below for the
+  // honest fallback/failure behavior when it's missing.
+  String? _tamilVoiceName;
+  String? _tamilVoiceLocale;
+  bool _tamilConfirmed = false;
+  bool get tamilAvailable => _tamilConfirmed;
+
   Future<void> init() async {
     if (_ready) return;
     await _loadRateMultiplier();
     await _selectIndianEnglish();
+    await _detectTamilVoice();
     await _tts.awaitSpeakCompletion(true);
     // We deliberately do NOT rely on the Future returned by the native
     // `speak` call to know when speech is done — on some devices/plugin
@@ -91,6 +103,22 @@ class TeacherTts {
     _tts.setCompletionHandler(_finishSpeak);
     _tts.setErrorHandler((msg) => _finishSpeak());
     _tts.setCancelHandler(_finishSpeak);
+    // Lets us approximate a real pause/resume (see pause()/resumeFrom()
+    // below): the engine calls this as it starts each new word, reporting
+    // that word's character offset into whatever text we last handed to
+    // speak(). Not every engine/Android version supports this — wrapped
+    // defensively so a device that doesn't just never calls it, and
+    // resume silently behaves like the old Stop-and-restart instead of
+    // crashing or doing nothing.
+    try {
+      _tts.setProgressHandler((text, start, end, word) {
+        _curWordOffset = start;
+      });
+    } catch (_) {
+      // Progress callback unsupported on this platform/plugin version —
+      // pause()/resumeFrom() still work, they just always resume from the
+      // very beginning on this device.
+    }
     _ready = true;
   }
 
@@ -141,6 +169,39 @@ class TeacherTts {
           label: multiple ? "Indian English ${i + 1}" : "Indian English",
         ),
     ];
+  }
+
+  /// Looks for a genuinely-installed Tamil voice the same way
+  /// [_loadVoiceOptions] looks for Indian English ones — only trusting
+  /// getVoices(), never just assuming setLanguage("ta-IN") will work.
+  /// Tamil locale shows up as "ta-IN" (or occasionally "ta-LK") depending
+  /// on the engine, so any "ta-*" locale counts.
+  Future<void> _detectTamilVoice() async {
+    _tamilConfirmed = false;
+    _tamilVoiceName = null;
+    _tamilVoiceLocale = null;
+    try {
+      final voices = await _tts.getVoices;
+      if (voices is List) {
+        for (final v in voices.cast<dynamic>()) {
+          if (v is! Map) continue;
+          final rawLocale = (v["locale"] ?? "").toString();
+          final locale = rawLocale.toLowerCase().replaceAll("_", "-");
+          if (locale == "ta-in" || locale == "ta-lk" || locale.startsWith("ta-") || locale == "ta") {
+            final name = (v["name"] ?? "").toString();
+            if (name.isEmpty) continue;
+            _tamilVoiceName = name;
+            _tamilVoiceLocale = rawLocale;
+            _tamilConfirmed = true;
+            break;
+          }
+        }
+      }
+    } catch (_) {
+      // getVoices not supported — Tamil speech falls back to a best-effort
+      // setLanguage attempt in speakTamil(), same honesty pattern as
+      // English's own unconfirmed fallback below.
+    }
   }
 
   /// Picks an Indian-English voice for the on-device TTS engine, and builds
@@ -244,6 +305,7 @@ class TeacherTts {
   Future<void> recheckVoice() async {
     await init(); // ensures the engine itself is initialized at least once
     await _selectIndianEnglish();
+    await _detectTamilVoice();
   }
 
   /// The locale we ended up selecting (best-effort — for diagnostics only).
@@ -255,36 +317,137 @@ class TeacherTts {
   bool _activeLocaleConfirmed = false;
   bool get activeLocaleConfirmed => _activeLocaleConfirmed;
 
+  // --- Approximate pause/resume state -------------------------------
+  // Android's on-device TextToSpeech has no public API to resume an
+  // utterance from a mid-point — speak() always starts a brand-new
+  // utterance from its beginning. We approximate a real pause/resume
+  // instead: _curWordOffset is kept up to date by the progress handler
+  // registered in init() above (last reported word-start offset, relative
+  // to whatever slice of text we most recently handed to speak()).
+  // _curBaseOffset is how far into the ORIGINAL full text that slice
+  // itself started — so the two added together is always the true offset
+  // into the original text, even after several pause/resume round-trips.
+  String? _curFullText;
+  int _curBaseOffset = 0;
+  int _curWordOffset = 0;
+
   /// Speaks [text] as the given [speaker] and completes once the phone has
   /// finished saying it (or the speech was paused/stopped/errored).
-  /// Awaiting this is always safe — it can never hang forever.
-  Future<void> speak(String text, {TtsSpeaker speaker = TtsSpeaker.teacher}) async {
+  /// Awaiting this is always safe — it can never hang forever. Always
+  /// starts from the beginning — see [resumeFrom] to continue from a
+  /// previous [pause].
+  Future<void> speak(String text, {TtsSpeaker speaker = TtsSpeaker.teacher}) =>
+      _speakSlice(text, fullText: text, baseOffset: 0, tamil: false, speaker: speaker);
+
+  /// Speaks [text] (expected to be Tamil script) using a genuinely-
+  /// installed Tamil voice when one was found (see [tamilAvailable]), or a
+  /// best-effort attempt otherwise. Throws a [StateError] with message
+  /// "tamil-voice-unavailable" if even the best-effort attempt fails to
+  /// bind a voice — callers should show an honest "Tamil voice not found
+  /// on this phone" message rather than silently doing nothing.
+  Future<void> speakTamil(String text) =>
+      _speakSlice(text, fullText: text, baseOffset: 0, tamil: true);
+
+  /// Pauses whatever is currently speaking (English or Tamil) roughly
+  /// where it is, and returns the absolute character offset into the
+  /// ORIGINAL text passed to [speak]/[speakTamil]/[resumeFrom] to continue
+  /// from. Returns 0 if nothing was speaking, or if this particular
+  /// engine/device never reported a word boundary — in which case the
+  /// next [resumeFrom] call just starts over from the beginning, exactly
+  /// like the old Stop button. Never worse than before, just not always a
+  /// perfect mid-sentence pause (that part is honestly best-effort and
+  /// depends on the phone's TTS engine).
+  Future<int> pause() async {
+    final text = _curFullText;
+    final resumeAt = text == null ? 0 : (_curBaseOffset + _curWordOffset).clamp(0, text.length);
+    await stop();
+    return resumeAt;
+  }
+
+  /// Resumes speaking [fullText] from [fromOffset] (normally whatever
+  /// [pause] just returned) — pass the same [tamil]/[speaker] the original
+  /// speak call used. If [fromOffset] is at or past the end of the text,
+  /// this does nothing (nothing left to say).
+  Future<void> resumeFrom(String fullText, int fromOffset, {bool tamil = false, TtsSpeaker speaker = TtsSpeaker.teacher}) async {
+    final start = fromOffset.clamp(0, fullText.length);
+    if (start >= fullText.length) return;
+    await _speakSlice(fullText.substring(start), fullText: fullText, baseOffset: start, tamil: tamil, speaker: speaker);
+  }
+
+  Future<void> _speakSlice(
+    String slice, {
+    required String fullText,
+    required int baseOffset,
+    required bool tamil,
+    TtsSpeaker speaker = TtsSpeaker.teacher,
+  }) async {
     await init();
     await _tts.stop();
-    // Base rates stay exactly as originally tuned; rateMultiplier (from
-    // the Settings screen) scales on top of them. flutter_tts expects a
-    // rate roughly in 0.0-1.0 on Android, so the final value is clamped
-    // to stay in range even at the fastest 1.5x setting.
-    if (speaker == TtsSpeaker.friend) {
-      await _tts.setPitch(1.35);
-      await _tts.setSpeechRate((0.46 * _rateMultiplier).clamp(0.1, 1.0));
-    } else {
+    _curFullText = fullText;
+    _curBaseOffset = baseOffset;
+    _curWordOffset = 0;
+
+    if (tamil) {
+      bool voiceSet = false;
+      if (_tamilVoiceName != null) {
+        try {
+          await _tts.setVoice({"name": _tamilVoiceName!, "locale": _tamilVoiceLocale!});
+          voiceSet = true;
+        } catch (_) {
+          // Fall through to the best-effort attempt below.
+        }
+      }
+      if (!voiceSet) {
+        try {
+          await _tts.setLanguage("ta-IN");
+        } catch (_) {
+          throw StateError("tamil-voice-unavailable");
+        }
+      }
       await _tts.setPitch(1.0);
       await _tts.setSpeechRate((0.42 * _rateMultiplier).clamp(0.1, 1.0));
+    } else {
+      // Base rates stay exactly as originally tuned; rateMultiplier (from
+      // the Settings screen) scales on top of them. flutter_tts expects a
+      // rate roughly in 0.0-1.0 on Android, so the final value is clamped
+      // to stay in range even at the fastest 1.5x setting.
+      if (speaker == TtsSpeaker.friend) {
+        await _tts.setPitch(1.35);
+        await _tts.setSpeechRate((0.46 * _rateMultiplier).clamp(0.1, 1.0));
+      } else {
+        await _tts.setPitch(1.0);
+        await _tts.setSpeechRate((0.42 * _rateMultiplier).clamp(0.1, 1.0));
+      }
     }
+
     final completer = Completer<void>();
     _speakCompleter = completer;
     // Fire-and-forget on purpose — see the note in init() above about why
     // we don't await this call directly.
     // ignore: unawaited_futures
-    _tts.speak(text);
+    _tts.speak(slice);
     // Belt-and-suspenders: if the platform never calls any of our
     // completion/error/cancel handlers for some reason, don't let a
     // caller (like the lesson auto-play loop) hang forever.
-    return completer.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+    await completer.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+
+    if (tamil) {
+      // Switch back to the student's chosen English teacher voice so the
+      // next "Listen" tap on English text isn't stuck on the Tamil one.
+      final v = _selectedVoice;
+      if (v != null) {
+        try {
+          await _tts.setVoice({"name": v.name, "locale": v.locale});
+        } catch (_) {
+          // Non-fatal — worst case the next English speak() call re-binds
+          // its own voice anyway via _selectIndianEnglish's saved choice.
+        }
+      }
+    }
   }
 
-  /// Stops speaking right now. Safe to call even if nothing is speaking.
+  /// Stops speaking right now — a hard stop, forgetting any paused
+  /// position (unlike [pause]). Safe to call even if nothing is speaking.
   /// Immediately unblocks anything awaiting speak() — a caller doing
   /// `await speak(...)` in a loop (like the lesson auto-play) can check a
   /// "did the user pause?" flag right after this and stop cleanly, instead
@@ -292,5 +455,8 @@ class TeacherTts {
   Future<void> stop() async {
     _finishSpeak();
     await _tts.stop();
+    _curFullText = null;
+    _curBaseOffset = 0;
+    _curWordOffset = 0;
   }
 }
