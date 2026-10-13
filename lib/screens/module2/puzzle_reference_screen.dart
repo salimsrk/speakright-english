@@ -5,6 +5,7 @@ import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 
 /// Reference screen for the three stand-alone puzzles from the book that
 /// are pictures rather than plain text (missing-letters grid, the bottle
@@ -87,8 +88,23 @@ class _PuzzleReferenceScreenState extends State<PuzzleReferenceScreen> {
                           ),
                         ],
                         const SizedBox(height: 8),
-                        Text(p.description, style: const TextStyle(fontSize: 13.5, height: 1.4)),
-                        tamilMeaning(p.tamilDescription, topGap: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(p.description, style: const TextStyle(fontSize: 13.5, height: 1.4))),
+                            const SizedBox(width: 6),
+                            TtsSpeakerButton(text: p.description),
+                          ],
+                        ),
+                        if (p.tamilDescription.isNotEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: tamilMeaning(p.tamilDescription, topGap: 6)),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: p.tamilDescription, tamil: true),
+                            ],
+                          ),
                         const SizedBox(height: 10),
                         SpeakAndPracticeBar(text: p.description),
                         const SizedBox(height: 10),
