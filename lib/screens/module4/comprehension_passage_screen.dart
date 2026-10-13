@@ -5,6 +5,7 @@ import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 
 /// Shows one Module 4 reading passage: the English story, a short Tamil
 /// summary, then its five comprehension questions in a "think first,
@@ -80,8 +81,23 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5)),
-                        if (passage.tamilPassage.isNotEmpty) tamilMeaning(passage.tamilPassage, topGap: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5))),
+                            const SizedBox(width: 6),
+                            TtsSpeakerButton(text: passage.passage),
+                          ],
+                        ),
+                        if (passage.tamilPassage.isNotEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: tamilMeaning(passage.tamilPassage, topGap: 10)),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: passage.tamilPassage, tamil: true),
+                            ],
+                          ),
                         const SizedBox(height: 12),
                         SpeakAndPracticeBar(text: passage.passage),
                       ],
@@ -113,8 +129,23 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(passage.questions[i].answer, style: const TextStyle(fontSize: 13.5, height: 1.4)),
-                                  if (passage.questions[i].tamilAnswer.isNotEmpty) tamilMeaning(passage.questions[i].tamilAnswer, topGap: 8),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: Text(passage.questions[i].answer, style: const TextStyle(fontSize: 13.5, height: 1.4))),
+                                      const SizedBox(width: 6),
+                                      TtsSpeakerButton(text: passage.questions[i].answer),
+                                    ],
+                                  ),
+                                  if (passage.questions[i].tamilAnswer.isNotEmpty)
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(child: tamilMeaning(passage.questions[i].tamilAnswer, topGap: 8)),
+                                        const SizedBox(width: 6),
+                                        TtsSpeakerButton(text: passage.questions[i].tamilAnswer, tamil: true),
+                                      ],
+                                    ),
                                   const SizedBox(height: 10),
                                   SpeakAndPracticeBar(text: passage.questions[i].answer),
                                 ],
