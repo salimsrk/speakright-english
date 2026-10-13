@@ -4,6 +4,7 @@ import '../../services/student_mic.dart';
 import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 
 /// "Improve Your Reading Skill" — all 5 passages shown in full, one
 /// after another, since the book's own instruction is simply to read
@@ -88,8 +89,23 @@ class _ReadingPassagesScreenState extends State<ReadingPassagesScreen> {
                             child: Text(p.tamilTitle, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
                           ),
                         const SizedBox(height: 10),
-                        Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                        if (p.tamilPassage.isNotEmpty) tamilMeaning(p.tamilPassage, topGap: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5))),
+                            const SizedBox(width: 6),
+                            TtsSpeakerButton(text: p.passage),
+                          ],
+                        ),
+                        if (p.tamilPassage.isNotEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: tamilMeaning(p.tamilPassage, topGap: 10)),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: p.tamilPassage, tamil: true),
+                            ],
+                          ),
                         const SizedBox(height: 12),
                         SpeakAndPracticeBar(text: p.passage),
                       ],

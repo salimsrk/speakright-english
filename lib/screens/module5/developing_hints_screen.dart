@@ -5,6 +5,7 @@ import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 
 /// "Composition - B: Developing Hints" — the book's 5 hint outlines,
 /// each with a "think first, then reveal" sample story, the same
@@ -94,8 +95,23 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                             child: Text(h.tamilTitle, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
                           ),
                         const SizedBox(height: 10),
-                        Text(h.hint, style: const TextStyle(fontSize: 13.5, height: 1.5, fontStyle: FontStyle.italic)),
-                        if (h.tamilHint.isNotEmpty) tamilMeaning(h.tamilHint, topGap: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(h.hint, style: const TextStyle(fontSize: 13.5, height: 1.5, fontStyle: FontStyle.italic))),
+                            const SizedBox(width: 6),
+                            TtsSpeakerButton(text: h.hint),
+                          ],
+                        ),
+                        if (h.tamilHint.isNotEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: tamilMeaning(h.tamilHint, topGap: 6)),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: h.tamilHint, tamil: true),
+                            ],
+                          ),
                         const SizedBox(height: 12),
                         if (_revealed.contains(i))
                           Container(
@@ -105,8 +121,23 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                                if (h.tamilSampleStory.isNotEmpty) tamilMeaning(h.tamilSampleStory, topGap: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5))),
+                                    const SizedBox(width: 6),
+                                    TtsSpeakerButton(text: h.sampleStory),
+                                  ],
+                                ),
+                                if (h.tamilSampleStory.isNotEmpty)
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: tamilMeaning(h.tamilSampleStory, topGap: 8)),
+                                      const SizedBox(width: 6),
+                                      TtsSpeakerButton(text: h.tamilSampleStory, tamil: true),
+                                    ],
+                                  ),
                                 const SizedBox(height: 10),
                                 SpeakAndPracticeBar(text: h.sampleStory),
                               ],

@@ -4,6 +4,7 @@ import '../../services/student_mic.dart';
 import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/tts_speaker_button.dart';
 
 /// "Model Letters — Requisitions": the book's 8-point format checklist,
 /// followed by its two model official letters — each with a Listen/
@@ -64,8 +65,23 @@ class _ModelLettersScreenState extends State<ModelLettersScreen> {
                       children: [
                         const Text("Requisitions", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 8),
-                        Text(letterWritingIntro, style: const TextStyle(fontSize: 13.5, height: 1.45)),
-                        tamilMeaning(letterWritingTamilIntro, topGap: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(letterWritingIntro, style: const TextStyle(fontSize: 13.5, height: 1.45))),
+                            const SizedBox(width: 6),
+                            TtsSpeakerButton(text: letterWritingIntro),
+                          ],
+                        ),
+                        if (letterWritingTamilIntro.isNotEmpty)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: tamilMeaning(letterWritingTamilIntro, topGap: 8)),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: letterWritingTamilIntro, tamil: true),
+                            ],
+                          ),
                         const SizedBox(height: 10),
                         SpeakAndPracticeBar(text: letterWritingIntro),
                         const SizedBox(height: 12),
@@ -117,11 +133,28 @@ class _ModelLettersScreenState extends State<ModelLettersScreen> {
                           const SizedBox(height: 4),
                           const Text("To: (the concerned official's address)", style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: AppColors.inkSoft)),
                           const SizedBox(height: 12),
-                          Text(letter.subject, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: Text(letter.subject, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
+                              const SizedBox(width: 6),
+                              TtsSpeakerButton(text: "${letter.subject}. ${letter.body.join(' ')}"),
+                            ],
+                          ),
                           if (letter.tamilSubject.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
-                              child: Text(letter.tamilSubject, style: const TextStyle(fontSize: 12, color: AppColors.inkSoft)),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: Text(letter.tamilSubject, style: const TextStyle(fontSize: 12, color: AppColors.inkSoft))),
+                                  const SizedBox(width: 6),
+                                  TtsSpeakerButton(
+                                    text: "${letter.tamilSubject}. ${letter.tamilBody.join(' ')}",
+                                    tamil: true,
+                                  ),
+                                ],
+                              ),
                             ),
                           const SizedBox(height: 12),
                           for (int i = 0; i < letter.body.length; i++)
