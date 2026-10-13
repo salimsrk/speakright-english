@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../data/composition_content.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 
 /// "Composition - B: Developing Hints" — the book's 5 hint outlines,
 /// each with a "think first, then reveal" sample story, the same
@@ -15,6 +18,13 @@ class DevelopingHintsScreen extends StatefulWidget {
 
 class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
   final Set<int> _revealed = {};
+
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   Future<void> _reveal(int i) async {
     setState(() => _revealed.add(i));
@@ -97,6 +107,8 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                               children: [
                                 Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5)),
                                 if (h.tamilSampleStory.isNotEmpty) tamilMeaning(h.tamilSampleStory, topGap: 8),
+                                const SizedBox(height: 10),
+                                SpeakAndPracticeBar(text: h.sampleStory),
                               ],
                             ),
                           )

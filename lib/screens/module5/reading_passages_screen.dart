@@ -1,13 +1,31 @@
 import 'package:flutter/material.dart';
 import '../../data/composition_content.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 
 /// "Improve Your Reading Skill" — all 5 passages shown in full, one
 /// after another, since the book's own instruction is simply to read
 /// them aloud (with the teacher's guidance on pronunciation) rather
-/// than answer questions on them.
-class ReadingPassagesScreen extends StatelessWidget {
+/// than answer questions on them. Each passage now has a Listen/Say-it
+/// bar for exactly that — hear the Teacher read it, then try reading it
+/// aloud yourself and get a score — which is the single screen this
+/// whole "read aloud" instruction was asking for.
+class ReadingPassagesScreen extends StatefulWidget {
   const ReadingPassagesScreen({super.key});
+
+  @override
+  State<ReadingPassagesScreen> createState() => _ReadingPassagesScreenState();
+}
+
+class _ReadingPassagesScreenState extends State<ReadingPassagesScreen> {
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +90,8 @@ class ReadingPassagesScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5)),
                         if (p.tamilPassage.isNotEmpty) tamilMeaning(p.tamilPassage, topGap: 10),
+                        const SizedBox(height: 12),
+                        SpeakAndPracticeBar(text: p.passage),
                       ],
                     ),
                   );

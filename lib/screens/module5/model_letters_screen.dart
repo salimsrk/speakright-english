@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
 import '../../data/composition_content.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 
 /// "Model Letters — Requisitions": the book's 8-point format checklist,
-/// followed by its two model official letters.
-class ModelLettersScreen extends StatelessWidget {
+/// followed by its two model official letters — each with a Listen/
+/// Say-it bar so a student can hear the whole letter read aloud and
+/// practice reading it back.
+class ModelLettersScreen extends StatefulWidget {
   const ModelLettersScreen({super.key});
+
+  @override
+  State<ModelLettersScreen> createState() => _ModelLettersScreenState();
+}
+
+class _ModelLettersScreenState extends State<ModelLettersScreen> {
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +66,8 @@ class ModelLettersScreen extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(letterWritingIntro, style: const TextStyle(fontSize: 13.5, height: 1.45)),
                         tamilMeaning(letterWritingTamilIntro, topGap: 8),
+                        const SizedBox(height: 10),
+                        SpeakAndPracticeBar(text: letterWritingIntro),
                         const SizedBox(height: 12),
                         for (int i = 0; i < letterWritingTips.length; i++)
                           Padding(
@@ -117,6 +136,8 @@ class ModelLettersScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
+                          const SizedBox(height: 4),
+                          SpeakAndPracticeBar(text: "${letter.subject}. ${letter.body.join(' ')}"),
                         ],
                       ),
                     ),
