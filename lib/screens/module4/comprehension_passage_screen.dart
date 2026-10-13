@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/comprehension.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 
 /// Shows one Module 4 reading passage: the English story, a short Tamil
 /// summary, then its five comprehension questions in a "think first,
@@ -17,6 +20,13 @@ class ComprehensionPassageScreen extends StatefulWidget {
 
 class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen> {
   final Set<int> _revealed = {};
+
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   Future<void> _reveal(int i) async {
     setState(() => _revealed.add(i));
@@ -72,6 +82,8 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                       children: [
                         Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5)),
                         if (passage.tamilPassage.isNotEmpty) tamilMeaning(passage.tamilPassage, topGap: 10),
+                        const SizedBox(height: 12),
+                        SpeakAndPracticeBar(text: passage.passage),
                       ],
                     ),
                   ),
@@ -103,6 +115,8 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                                 children: [
                                   Text(passage.questions[i].answer, style: const TextStyle(fontSize: 13.5, height: 1.4)),
                                   if (passage.questions[i].tamilAnswer.isNotEmpty) tamilMeaning(passage.questions[i].tamilAnswer, topGap: 8),
+                                  const SizedBox(height: 10),
+                                  SpeakAndPracticeBar(text: passage.questions[i].answer),
                                 ],
                               ),
                             )
