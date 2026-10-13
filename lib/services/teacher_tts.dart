@@ -8,6 +8,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// works offline, on every phone, with zero extra downloads.
 enum TtsSpeaker { teacher, friend }
 
+/// One real Indian-English voice we found via the TTS engine's own
+/// getVoices() list — which (unlike getLanguages()) only ever lists a
+/// voice if its data is genuinely installed on this phone. Students pick
+/// between these in Settings ("Teacher Voice"). Every option here is
+/// always an Indian English voice by design — see _loadVoiceOptions below.
+class TtsVoiceOption {
+  final String name; // engine-internal id, e.g. "en-in-x-ene-network"
+  final String locale; // e.g. "en-IN"
+  final String label; // what we show the student, e.g. "Indian English 1"
+  const TtsVoiceOption({required this.name, required this.locale, required this.label});
+}
+
 /// Free built-in "Teacher" voice — uses the phone's own on-device
 /// text-to-speech engine (Android TextToSpeech). Works fully offline
 /// once the phone's English voice pack is installed, which is true on
@@ -52,6 +64,17 @@ class TeacherTts {
     }
   }
 
+  // --- Settings-screen "Teacher Voice" picker ---
+  // Which real on-device Indian-English voices we found (see
+  // TtsVoiceOption above), and which one the student picked. Persisted so
+  // the choice survives app restarts, same pattern as the speed
+  // multiplier.
+  static const _voiceNameKey = "speakright_tts_voice_name_v1";
+  List<TtsVoiceOption> _voiceOptions = [];
+  List<TtsVoiceOption> get voiceOptions => _voiceOptions;
+  TtsVoiceOption? _selectedVoice;
+  TtsVoiceOption? get selectedVoice => _selectedVoice;
+
   Future<void> init() async {
     if (_ready) return;
     await _loadRateMultiplier();
@@ -76,14 +99,61 @@ class TeacherTts {
     if (c != null && !c.isCompleted) c.complete();
   }
 
-  /// Picks an Indian-English voice for the on-device TTS engine.
+  /// Builds [_voiceOptions] from the engine's own getVoices() list — the
+  /// only reliable signal that a voice's data is genuinely installed (see
+  /// the note on _selectIndianEnglish below). Only locale "en-IN" voices
+  /// are ever included here: every chip the Settings screen shows must be
+  /// a real Indian-accent voice, never a US/UK/Australian fallback, per
+  /// the client's explicit requirement. If the phone genuinely has more
+  /// than one distinct Indian voice installed (common on Google's TTS
+  /// engine — e.g. a male and a female "network" voice), each one gets
+  /// its own numbered option: "Indian English 1", "Indian English 2", etc.
+  Future<void> _loadVoiceOptions() async {
+    final found = <Map<String, String>>[]; // [{name, locale}]
+    try {
+      final voices = await _tts.getVoices;
+      if (voices is List) {
+        for (final v in voices.cast<dynamic>()) {
+          if (v is! Map) continue;
+          final rawLocale = (v["locale"] ?? "").toString();
+          final locale = rawLocale.toLowerCase().replaceAll("_", "-");
+          if (locale != "en-in") continue;
+          final name = (v["name"] ?? "").toString();
+          if (name.isEmpty) continue;
+          // A handful of engines list the exact same voice twice under
+          // slightly different metadata — skip an exact name repeat.
+          if (found.any((f) => f["name"] == name)) continue;
+          found.add({"name": name, "locale": rawLocale});
+        }
+      }
+    } catch (_) {
+      // getVoices not supported on this platform — _voiceOptions stays
+      // empty and the Settings screen falls back to a "get more voices"
+      // message instead of showing anything non-Indian.
+    }
+
+    final multiple = found.length > 1;
+    _voiceOptions = [
+      for (var i = 0; i < found.length; i++)
+        TtsVoiceOption(
+          name: found[i]["name"]!,
+          locale: found[i]["locale"]!,
+          label: multiple ? "Indian English ${i + 1}" : "Indian English",
+        ),
+    ];
+  }
+
+  /// Picks an Indian-English voice for the on-device TTS engine, and builds
+  /// the voice list the Settings screen offers.
   ///
   /// Students here are learning Tamil-accented English, and then have
   /// their spoken repeat scored by the on-device speech recognizer
   /// (see student_mic.dart). If the teacher's demo audio comes out sounding
   /// American, students end up imitating an accent that doesn't match how
   /// they'll actually be recognised — which was making scores lower than
-  /// they should be. So we deliberately prefer en-IN everywhere we can.
+  /// they should be. So we deliberately prefer en-IN everywhere we can,
+  /// and (per the client's explicit ask) the Settings picker only ever
+  /// offers Indian voices, never a US/UK one as a substitute.
   ///
   /// `setLanguage("en-IN")` alone isn't fully reliable: some engines report
   /// a locale as "available" in getLanguages() even when only its default
@@ -95,59 +165,43 @@ class TeacherTts {
   /// whatever the engine defaults to — exactly the "subject to the
   /// capabilities of the device" caveat we've already flagged to the client.
   Future<void> _selectIndianEnglish() async {
-    const preferredLocales = ["en-IN", "en-GB", "en-US"];
     _activeLocaleConfirmed = false;
+    await _loadVoiceOptions();
 
-    // 1) Try to bind an explicit voice whose locale matches, best candidate
-    // first. This is the most reliable option when it's available — a
-    // voice only shows up in getVoices() if its data is genuinely present
-    // on the device, so a match here is a real, confirmed install.
-    try {
-      final voices = await _tts.getVoices;
-      if (voices is List) {
-        final list = voices.cast<dynamic>();
-        for (final candidate in preferredLocales) {
-          for (final v in list) {
-            if (v is Map) {
-              final locale = (v["locale"] ?? "").toString();
-              if (locale.toLowerCase() == candidate.toLowerCase() ||
-                  locale.toLowerCase().replaceAll("_", "-") == candidate.toLowerCase()) {
-                try {
-                  await _tts.setVoice({"name": (v["name"] ?? "").toString(), "locale": locale});
-                  _activeLocale = candidate;
-                  _activeLocaleConfirmed = true;
-                  return;
-                } catch (_) {
-                  // This particular voice failed to bind — keep looking.
-                }
-              }
-            }
-          }
+    if (_voiceOptions.isNotEmpty) {
+      // Re-pick whatever the student chose last time, if that exact voice
+      // is still available on this phone; otherwise default to the first
+      // one found.
+      TtsVoiceOption chosen = _voiceOptions.first;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final savedName = prefs.getString(_voiceNameKey);
+        if (savedName != null) {
+          chosen = _voiceOptions.firstWhere((v) => v.name == savedName, orElse: () => chosen);
         }
+      } catch (_) {
+        // Non-fatal — just use the default.
       }
-    } catch (_) {
-      // getVoices/setVoice not supported on this platform — fall through.
+      try {
+        await _tts.setVoice({"name": chosen.name, "locale": chosen.locale});
+        _selectedVoice = chosen;
+        _activeLocale = chosen.locale;
+        _activeLocaleConfirmed = true;
+        return;
+      } catch (_) {
+        // This particular voice failed to bind — fall through to the
+        // less-reliable setLanguage attempt below.
+      }
     }
 
-    // 2) Fall back to setLanguage with the same preference order. Less
-    // reliable than step 1 — some engines report a locale as "available"
-    // here even when only its default (usually US) voice data is actually
-    // downloaded — so this is NOT marked as confirmed.
+    // Fallback for engines where getVoices()/setVoice() didn't give us a
+    // confirmed Indian voice: still ask for en-IN directly as a last,
+    // unconfirmed attempt. Some engines accept setLanguage for a locale
+    // that isn't enumerated by getLanguages/getVoices but is genuinely
+    // installed; others silently keep speaking in whatever voice was
+    // already active. Either way, this never populates the Settings
+    // picker — only a getVoices()-confirmed match does that.
     try {
-      final languages = await _tts.getLanguages;
-      final available = (languages is List) ? languages.cast<dynamic>().map((e) => e.toString()).toList() : <String>[];
-      for (final candidate in preferredLocales) {
-        if (available.any((l) => l.toLowerCase() == candidate.toLowerCase())) {
-          await _tts.setLanguage(candidate);
-          _activeLocale = candidate;
-          return;
-        }
-      }
-      // 3) Neither list told us anything useful — still ask for en-IN
-      // directly as a last, unconfirmed attempt. Some engines accept
-      // setLanguage for a locale that isn't enumerated by
-      // getLanguages/getVoices but is genuinely installed; others silently
-      // keep speaking in whatever voice was already active.
       await _tts.setLanguage("en-IN");
       _activeLocale = "en-IN";
     } catch (e) {
@@ -156,10 +210,37 @@ class TeacherTts {
     }
   }
 
-  /// Re-detects the best available voice without restarting the app —
-  /// lets the Settings screen's "Re-check" button pick up a voice pack
-  /// the student just installed from the phone's own Settings app, with
-  /// no app reinstall needed.
+  /// Switches the active Teacher voice to [voice] and remembers the choice
+  /// for next time the app opens. Used by the Settings screen's voice
+  /// chips — tapping a chip previews it (see previewVoice below), which
+  /// calls this first.
+  Future<void> selectVoice(TtsVoiceOption voice) async {
+    await init();
+    try {
+      await _tts.setVoice({"name": voice.name, "locale": voice.locale});
+      _selectedVoice = voice;
+      _activeLocale = voice.locale;
+      _activeLocaleConfirmed = true;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_voiceNameKey, voice.name);
+    } catch (_) {
+      // Non-fatal — the student just stays on whichever voice was active.
+    }
+  }
+
+  /// Selects [voice] and immediately speaks a short sample so the student
+  /// (or whoever's testing on the client's phone) can hear it before
+  /// committing — exactly the "tap a voice to hear it" interaction on the
+  /// Settings screen.
+  Future<void> previewVoice(TtsVoiceOption voice) async {
+    await selectVoice(voice);
+    await speak("Hello! I am your teacher. Let's practice English together.");
+  }
+
+  /// Re-detects available voices without restarting the app — lets the
+  /// Settings screen's refresh control pick up a voice pack the student
+  /// just installed from the phone's own Settings app, with no app
+  /// reinstall needed.
   Future<void> recheckVoice() async {
     await init(); // ensures the engine itself is initialized at least once
     await _selectIndianEnglish();
@@ -171,8 +252,6 @@ class TeacherTts {
 
   /// True only when [activeLocale] was confirmed against the engine's own
   /// list of installed voices (step 1 above) — not just requested blind.
-  /// Shown in Settings so "says English (India)" and "genuinely confirmed
-  /// English (India) is installed" aren't presented as the same thing.
   bool _activeLocaleConfirmed = false;
   bool get activeLocaleConfirmed => _activeLocaleConfirmed;
 
