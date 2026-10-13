@@ -64,7 +64,7 @@ jobs:
           python3 assets/module2/generate_bottle_image.py
           ls -lh assets/module2/
 
-      - name: Add microphone permission + speech-recognition query to AndroidManifest.xml
+      - name: Set app name + add microphone permission/speech-recognition query to AndroidManifest.xml
         run: |
           python3 - <<'PY'
           import re
@@ -92,6 +92,19 @@ jobs:
                   content,
                   count=1,
               )
+          # The app's actual home-screen name (what shows under the icon, and
+          # in the recent-apps switcher) comes from android:label on the
+          # <application> tag — not from pubspec.yaml or the MaterialApp
+          # `title` (that only affects the task-switcher title on some
+          # Android versions, never the launcher). Whatever flutter create
+          # put there by default gets replaced with the client's real app
+          # name here, the same way minSdk/signing already gets overridden
+          # further down in this workflow.
+          app_name = "Kalvi40"
+          if 'android:label="' in content:
+              content = re.sub(r'android:label="[^"]*"', f'android:label="{app_name}"', content, count=1)
+          else:
+              content = re.sub(r"(<application\b)", f'\\1 android:label="{app_name}"', content, count=1)
           with open(path, "w", encoding="utf-8") as f:
               f.write(content)
           print("--- AndroidManifest.xml ---")
