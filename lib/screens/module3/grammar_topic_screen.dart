@@ -1,16 +1,36 @@
 import 'package:flutter/material.dart';
 import '../../models/grammar.dart';
+import '../../services/student_mic.dart';
+import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/speak_and_practice_bar.dart';
 import '../module2/mcq_screen.dart';
 import 'grammar_fill_screen.dart';
 
 /// Explanation screen for one Module 3 grammar topic — an intro paragraph
 /// followed by its GrammarPoint "rule cards" (heading, short explanation,
 /// example sentences), then a Practice section at the bottom linking to
-/// whatever exercise(s) belong to this topic, if any.
-class GrammarTopicScreen extends StatelessWidget {
+/// whatever exercise(s) belong to this topic, if any. The intro and each
+/// point's explanation also get a Listen/Say-it bar (SpeakAndPracticeBar)
+/// so a student can hear the Teacher read the rule and then try saying it
+/// themselves, not just read it silently.
+class GrammarTopicScreen extends StatefulWidget {
   final GrammarTopic topic;
   const GrammarTopicScreen({super.key, required this.topic});
+
+  @override
+  State<GrammarTopicScreen> createState() => _GrammarTopicScreenState();
+}
+
+class _GrammarTopicScreenState extends State<GrammarTopicScreen> {
+  GrammarTopic get topic => widget.topic;
+
+  @override
+  void dispose() {
+    TeacherTts.instance.stop();
+    StudentMic.instance.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +81,8 @@ class GrammarTopicScreen extends StatelessWidget {
                         children: [
                           Text(topic.intro, style: const TextStyle(fontSize: 14, height: 1.45)),
                           if (topic.tamilIntro.isNotEmpty) tamilMeaning(topic.tamilIntro, topGap: 8),
+                          const SizedBox(height: 12),
+                          SpeakAndPracticeBar(text: topic.intro),
                         ],
                       ),
                     ),
@@ -89,6 +111,8 @@ class GrammarTopicScreen extends StatelessWidget {
                               ),
                             ),
                           ],
+                          const SizedBox(height: 10),
+                          SpeakAndPracticeBar(text: p.explanation.isNotEmpty ? p.explanation : p.heading),
                         ],
                       ),
                     ),
