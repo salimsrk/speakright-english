@@ -3,20 +3,35 @@ import '../services/scoring.dart';
 import '../services/student_mic.dart';
 import '../services/teacher_tts.dart';
 import '../theme/app_theme.dart';
+import 'voice_replay_control.dart';
 
-/// A small reusable "speaker + mic" control to drop under any block of
-/// English text in the app: tap "Listen" to hear the Teacher read it, tap
-/// "Say it" to try saying it themselves and get an instant, fully-offline
-/// score against that exact text — the same TeacherTts + StudentMic +
-/// scoring pipeline every lesson already uses, just attached to
-/// explanation/reference text instead of a dedicated lesson screen.
+/// A small reusable "Say it" mic-practice control to drop under any block
+/// of English text in the app: tap to speak it back and get an instant,
+/// fully-offline score against that exact text — the same StudentMic +
+/// scoring pipeline every lesson already uses.
 ///
-/// "Stop" rather than true pause/resume: the on-device TTS engine has no
-/// way to report or resume from a mid-sentence position (the same
-/// limitation already flagged — and designed around with the story-style
-/// step bar — for the Module 1 lesson player), so tapping the button again
-/// while it's speaking stops it rather than pausing it; starting again
-/// always reads from the beginning.
+/// The "Listen" side of this (hearing the Teacher read the text aloud,
+/// with a real pause/resume) used to live in this same widget, but per
+/// the client's explicit request it is now its own separate
+/// TtsSpeakerButton — one placed inline right next to the English
+/// sentence, and a second one placed inline right next to its Tamil
+/// translation, instead of one shared button below the whole block. See
+/// widgets/tts_speaker_button.dart.
+///
+/// Two things this bar adds beyond the first version:
+/// - Tap the mic again while it's listening to stop early and get scored
+///   on whatever was heard so far, instead of only the fixed timeout —
+///   wired straight to StudentMic.cancel(), which resolves the in-flight
+///   listen attempt early via its existing status-callback plumbing.
+/// - After a result comes back, a "Record to hear yourself" control
+///   appears (VoiceReplayControl) — the same, already-proven-on-device
+///   pattern used in the Module 1 lesson screens. It deliberately records
+///   a SEPARATE, sequential take rather than capturing audio during the
+///   scored attempt itself: recording audio and live speech recognition
+///   both need exclusive access to the microphone, and running them at
+///   the same time was tested on a real device and reliably broke
+///   recognition (see StudentRecorder's own header comment) — so
+///   playback is only ever offered after scoring has fully finished.
 class SpeakAndPracticeBar extends StatefulWidget {
   final String text;
   const SpeakAndPracticeBar({super.key, required this.text});
@@ -26,29 +41,21 @@ class SpeakAndPracticeBar extends StatefulWidget {
 }
 
 class _SpeakAndPracticeBarState extends State<SpeakAndPracticeBar> {
-  bool _speaking = false;
   bool _listening = false;
   String? _heard;
   String? _error;
   ScoreResult? _result;
-
-  Future<void> _togglePlay() async {
-    if (_speaking) {
-      await TeacherTts.instance.stop();
-      if (!mounted) return;
-      setState(() => _speaking = false);
-      return;
-    }
-    setState(() => _speaking = true);
-    await TeacherTts.instance.speak(widget.text);
-    if (!mounted) return;
-    setState(() => _speaking = false);
-  }
+  // Bumped on every successful attempt — passed to VoiceReplayControl as
+  // its turnKey so any previous take's recording/playback state clears
+  // when the student tries again.
+  int _attempt = 0;
 
   Future<void> _tryMic() async {
+    // Stop any Teacher/Tamil speech first — otherwise the recognizer can
+    // end up "hearing" our own TTS playing through the speaker instead of
+    // the student.
     await TeacherTts.instance.stop();
     setState(() {
-      _speaking = false;
       _listening = true;
       _error = null;
       _result = null;
@@ -68,6 +75,7 @@ class _SpeakAndPracticeBarState extends State<SpeakAndPracticeBar> {
         _heard = transcript;
         _result = score;
         _listening = false;
+        _attempt++;
       });
     } catch (e) {
       if (!mounted) return;
@@ -80,12 +88,23 @@ class _SpeakAndPracticeBarState extends State<SpeakAndPracticeBar> {
     }
   }
 
-  // Deliberately NOT stopping TeacherTts/StudentMic in a dispose() here —
+  // Manual stop: tapping the mic button again while it's listening ends
+  // that attempt right away and scores whatever was heard so far, instead
+  // of only ever stopping at the fixed timeout. StudentMic.cancel() makes
+  // the in-flight listenOnce() above resolve early (with the partial
+  // transcript) via its existing onStatus callback — _tryMic then runs
+  // its normal scoring path exactly as if the attempt had finished
+  // naturally.
+  void _stopMic() {
+    StudentMic.instance.cancel();
+  }
+
+  // Deliberately NOT stopping StudentMic/TeacherTts in a dispose() here —
   // several of these bars are typically on screen at once (one per
   // grammar point / passage paragraph), and tearing down the shared
   // singleton engines when any ONE of them unmounts would cut off
-  // playback that another bar on the same screen just started. The
-  // screen that hosts these bars stops both engines in its own
+  // listening/playback that another bar on the same screen just started.
+  // The screen that hosts these bars stops both engines in its own
   // dispose() instead, same as every other screen using them.
 
   @override
@@ -93,30 +112,19 @@ class _SpeakAndPracticeBarState extends State<SpeakAndPracticeBar> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            OutlinedButton.icon(
-              onPressed: _listening ? null : _togglePlay,
-              icon: Icon(_speaking ? Icons.stop : Icons.volume_up, size: 17),
-              label: Text(_speaking ? "Stop" : "Listen"),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                visualDensity: VisualDensity.compact,
-              ),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _listening ? _stopMic : _tryMic,
+            icon: Icon(_listening ? Icons.stop_circle : Icons.mic, size: 18, color: AppColors.primary),
+            label: Text(_listening ? "Listening… (tap to stop)" : "Say it"),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              visualDensity: VisualDensity.compact,
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
             ),
-            const SizedBox(width: 10),
-            OutlinedButton.icon(
-              onPressed: _speaking ? null : _tryMic,
-              icon: Icon(_listening ? Icons.hearing : Icons.mic, size: 17, color: AppColors.primary),
-              label: Text(_listening ? "Listening…" : "Say it"),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                visualDensity: VisualDensity.compact,
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-              ),
-            ),
-          ],
+          ),
         ),
         if (_error != null)
           Padding(
@@ -141,6 +149,7 @@ class _SpeakAndPracticeBarState extends State<SpeakAndPracticeBar> {
                   const SizedBox(height: 2),
                   Text('You said: "$_heard"',
                       style: const TextStyle(fontSize: 11.5, color: AppColors.inkSoft, fontStyle: FontStyle.italic)),
+                  VoiceReplayControl(turnKey: _attempt),
                 ],
               ),
             ),
