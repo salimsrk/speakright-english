@@ -124,7 +124,7 @@ class _Header extends StatelessWidget {
               const SizedBox(width: 10),
               const Text("🗣️", style: TextStyle(fontSize: 24)),
               const SizedBox(width: 8),
-              const Text("SpeakRight",
+              const Text("Kalvi40",
                   style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
             ],
           ),
