@@ -325,10 +325,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 40),
-            const Center(
-              child: Text("Developed by SRK Nexus AI", style: TextStyle(color: AppColors.inkSoft, fontSize: 13, fontWeight: FontWeight.w700)),
-            ),
           ],
         ),
       ),
