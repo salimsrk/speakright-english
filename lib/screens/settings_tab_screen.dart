@@ -109,7 +109,7 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
               "3. Tap the gear icon next to the preferred engine (usually Google)\n"
               "4. Tap \"Install voice data\"\n"
               "5. Find \"English (India)\" and download it\n"
-              "6. Come back to Kalvi40 → Settings and tap the refresh icon above",
+              "6. Come back to SpeakRight → Settings and tap the refresh icon above",
               style: TextStyle(fontSize: 13.5, color: AppColors.inkSoft, height: 1.6),
             ),
             const SizedBox(height: 18),

@@ -112,7 +112,7 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
       _checkingOffline = false;
       _offlineResultText = online
           ? "You're online right now — but you don't need to be. Every lesson already works with zero internet. ✓"
-          : "You're offline right now — and Kalvi40 works exactly the same. Nothing here needs internet. ✓";
+          : "You're offline right now — and SpeakRight works exactly the same. Nothing here needs internet. ✓";
     });
   }
 
@@ -142,14 +142,12 @@ class _HomeTabScreenState extends State<HomeTabScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        ClipOval(
-                          child: Image.asset("assets/icon/app_icon.png", width: 34, height: 34, fit: BoxFit.cover),
-                        ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text("Kalvi40",
+                        Text("🗣️", style: TextStyle(fontSize: 28)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text("SpeakRight English",
                               style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
                         ),
                       ],
