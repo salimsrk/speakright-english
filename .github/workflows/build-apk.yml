@@ -100,7 +100,7 @@ jobs:
           # put there by default gets replaced with the client's real app
           # name here, the same way minSdk/signing already gets overridden
           # further down in this workflow.
-          app_name = "Kalvi40"
+          app_name = "SpeakRight"
           if 'android:label="' in content:
               content = re.sub(r'android:label="[^"]*"', f'android:label="{app_name}"', content, count=1)
           else:
