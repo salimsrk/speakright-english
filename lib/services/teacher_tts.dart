@@ -76,15 +76,28 @@ class TeacherTts {
   TtsVoiceOption? get selectedVoice => _selectedVoice;
 
   // --- Tamil speech (for the Tamil-translation speaker button) ---
-  // A confirmed-installed Tamil voice, found the same way the English
-  // picker finds Indian voices — only trusted if getVoices() itself lists
-  // it, since that's the only reliable signal the voice data really is on
-  // this phone. Not every phone has one; see speakTamil below for the
-  // honest fallback/failure behavior when it's missing.
-  String? _tamilVoiceName;
-  String? _tamilVoiceLocale;
-  bool _tamilConfirmed = false;
-  bool get tamilAvailable => _tamilConfirmed;
+  // Every confirmed-installed Tamil voice, found the same way the English
+  // picker found Indian English ones — only trusted if getVoices() itself
+  // lists it, since that's the only reliable signal the voice data really
+  // is on this phone. Not every phone has one; see speakTamil below for
+  // the honest fallback/failure behavior when none is found.
+  //
+  // TEMPORARY testing picker: the client found the auto-picked Tamil
+  // voice sounds like a woman's voice and wants a different one. There is
+  // no "gender" field available from the TTS engine to pick by
+  // programmatically (unlike English, we were never told which index
+  // sounds right), so — exactly like how "Indian English 7" was found in
+  // the first place — this exposes a small temporary voice-testing list in
+  // Settings so the client can tap through the Tamil voices actually
+  // installed on their phone and tell us which one to pin. Once they
+  // confirm one, it gets hardcoded the same way the English voice was and
+  // this temporary UI comes back out.
+  static const _tamilVoiceNameKey = "speakright_tts_tamil_voice_name_v1";
+  List<TtsVoiceOption> _tamilVoiceOptions = [];
+  List<TtsVoiceOption> get tamilVoiceOptions => _tamilVoiceOptions;
+  TtsVoiceOption? _selectedTamilVoice;
+  TtsVoiceOption? get selectedTamilVoice => _selectedTamilVoice;
+  bool get tamilAvailable => _tamilVoiceOptions.isNotEmpty;
 
   Future<void> init() async {
     if (_ready) return;
@@ -171,15 +184,17 @@ class TeacherTts {
     ];
   }
 
-  /// Looks for a genuinely-installed Tamil voice the same way
+  /// Looks for every genuinely-installed Tamil voice the same way
   /// [_loadVoiceOptions] looks for Indian English ones — only trusting
   /// getVoices(), never just assuming setLanguage("ta-IN") will work.
   /// Tamil locale shows up as "ta-IN" (or occasionally "ta-LK") depending
-  /// on the engine, so any "ta-*" locale counts.
+  /// on the engine, so any "ta-*" locale counts. Unlike the old
+  /// single-voice version of this method, this collects EVERY Tamil voice
+  /// found (not just the first) — needed so the temporary Settings testing
+  /// list can offer more than one, in case this phone has an alternative
+  /// to the one that turned out to sound female.
   Future<void> _detectTamilVoice() async {
-    _tamilConfirmed = false;
-    _tamilVoiceName = null;
-    _tamilVoiceLocale = null;
+    final found = <Map<String, String>>[]; // [{name, locale}]
     try {
       final voices = await _tts.getVoices;
       if (voices is List) {
@@ -190,10 +205,8 @@ class TeacherTts {
           if (locale == "ta-in" || locale == "ta-lk" || locale.startsWith("ta-") || locale == "ta") {
             final name = (v["name"] ?? "").toString();
             if (name.isEmpty) continue;
-            _tamilVoiceName = name;
-            _tamilVoiceLocale = rawLocale;
-            _tamilConfirmed = true;
-            break;
+            if (found.any((f) => f["name"] == name)) continue;
+            found.add({"name": name, "locale": rawLocale});
           }
         }
       }
@@ -202,6 +215,57 @@ class TeacherTts {
       // setLanguage attempt in speakTamil(), same honesty pattern as
       // English's own unconfirmed fallback below.
     }
+
+    final multiple = found.length > 1;
+    _tamilVoiceOptions = [
+      for (var i = 0; i < found.length; i++)
+        TtsVoiceOption(
+          name: found[i]["name"]!,
+          locale: found[i]["locale"]!,
+          label: multiple ? "Tamil ${i + 1}" : "Tamil",
+        ),
+    ];
+
+    if (_tamilVoiceOptions.isEmpty) {
+      _selectedTamilVoice = null;
+      return;
+    }
+    // Re-pick whatever was chosen last time in the testing list, if that
+    // exact voice is still available; otherwise default to the first one
+    // found (today's behavior, until the client confirms a better one).
+    TtsVoiceOption chosen = _tamilVoiceOptions.first;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedName = prefs.getString(_tamilVoiceNameKey);
+      if (savedName != null) {
+        chosen = _tamilVoiceOptions.firstWhere((v) => v.name == savedName, orElse: () => chosen);
+      }
+    } catch (_) {
+      // Non-fatal — just use the default.
+    }
+    _selectedTamilVoice = chosen;
+  }
+
+  /// Switches the Tamil voice used by [speakTamil] to [voice] and
+  /// remembers the choice for next time the app opens — same persistence
+  /// pattern as the (now-removed) English voice picker's selectVoice.
+  Future<void> selectTamilVoice(TtsVoiceOption voice) async {
+    await init();
+    _selectedTamilVoice = voice;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tamilVoiceNameKey, voice.name);
+    } catch (_) {
+      // Non-fatal — the choice still applies for the rest of this session.
+    }
+  }
+
+  /// Selects [voice] and immediately speaks a short Tamil sample so
+  /// whoever's testing can hear it before confirming — same "tap a voice
+  /// to hear it" interaction the English picker used to have.
+  Future<void> previewTamilVoice(TtsVoiceOption voice) async {
+    await selectTamilVoice(voice);
+    await speakTamil("வணக்கம்! நான் உங்கள் ஆசிரியர். ஆங்கிலம் பேச பழகலாம்.");
   }
 
   /// Picks an Indian-English voice for the on-device TTS engine, and builds
@@ -225,24 +289,30 @@ class TeacherTts {
   /// device. We try that first, then fall back to setLanguage, then to
   /// whatever the engine defaults to — exactly the "subject to the
   /// capabilities of the device" caveat we've already flagged to the client.
+  ///
+  /// PINNED VOICE, NO STUDENT PICKER: the client listened to every Indian
+  /// voice this engine offers and chose one specific one — the 7th voice
+  /// found on their test phone ("Indian English 7") — to use everywhere,
+  /// with no choice shown to students any more. Android TTS voices have no
+  /// name that's guaranteed identical across every phone/engine version,
+  /// so the only stable handle we have is POSITION in this same
+  /// getVoices()-found list, which is what the old "Indian English 7"
+  /// label itself was always built from (see _loadVoiceOptions above) —
+  /// so pinning by that same index reproduces the exact voice the client
+  /// approved on any phone whose engine lists voices in the same order.
+  /// On a phone with fewer than 7 Indian voices there's no way to know
+  /// which one would have been its 7th, so this falls back to the last
+  /// voice found rather than guessing further — still always a confirmed,
+  /// genuinely-installed Indian English voice, just not guaranteed to be
+  /// the identical one on every phone.
+  static const _pinnedVoiceIndex = 6; // "Indian English 7", 0-indexed
+
   Future<void> _selectIndianEnglish() async {
     _activeLocaleConfirmed = false;
     await _loadVoiceOptions();
 
     if (_voiceOptions.isNotEmpty) {
-      // Re-pick whatever the student chose last time, if that exact voice
-      // is still available on this phone; otherwise default to the first
-      // one found.
-      TtsVoiceOption chosen = _voiceOptions.first;
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final savedName = prefs.getString(_voiceNameKey);
-        if (savedName != null) {
-          chosen = _voiceOptions.firstWhere((v) => v.name == savedName, orElse: () => chosen);
-        }
-      } catch (_) {
-        // Non-fatal — just use the default.
-      }
+      final chosen = _pinnedVoiceIndex < _voiceOptions.length ? _voiceOptions[_pinnedVoiceIndex] : _voiceOptions.last;
       try {
         await _tts.setVoice({"name": chosen.name, "locale": chosen.locale});
         _selectedVoice = chosen;
@@ -389,9 +459,10 @@ class TeacherTts {
 
     if (tamil) {
       bool voiceSet = false;
-      if (_tamilVoiceName != null) {
+      final tamilVoice = _selectedTamilVoice;
+      if (tamilVoice != null) {
         try {
-          await _tts.setVoice({"name": _tamilVoiceName!, "locale": _tamilVoiceLocale!});
+          await _tts.setVoice({"name": tamilVoice.name, "locale": tamilVoice.locale});
           voiceSet = true;
         } catch (_) {
           // Fall through to the best-effort attempt below.
