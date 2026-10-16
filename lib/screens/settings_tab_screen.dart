@@ -2,21 +2,17 @@ import 'package:flutter/material.dart';
 import '../services/teacher_tts.dart';
 import '../theme/app_theme.dart';
 
-/// Settings tab — Teacher Voice Speed, plus a TEMPORARY "Tamil Voice"
-/// testing card. The permanent English voice picker (Indian-voice chips
-/// the student could tap to preview/choose) was removed per the client's
-/// explicit request: they listened to every voice and picked one specific
-/// one ("Indian English 7") to use everywhere, with no further choice
-/// shown to students — see TeacherTts._selectIndianEnglish for where that
-/// pinned voice is applied.
+/// Settings tab — Teacher Voice Speed only. The permanent English voice
+/// picker (Indian-voice chips the student could tap to preview/choose) was
+/// removed per the client's explicit request: they listened to every voice
+/// and picked one specific one ("Indian English 7") to use everywhere, with
+/// no further choice shown to students — see TeacherTts._selectIndianEnglish
+/// for where that pinned voice is applied.
 ///
-/// The Tamil card below exists only because the auto-picked Tamil voice
-/// turned out to sound female and the client wants a different one, and
-/// there is no "gender" field the app can read from the TTS engine to
-/// pick correctly on its own — same situation the English picker solved
-/// by letting the client tap through voices and tell us which one to
-/// pin. Once the client confirms a Tamil voice here, it should be
-/// hardcoded the same way "Indian English 7" was, and this card removed.
+/// The temporary "Tamil Voice (testing)" card that lived here has likewise
+/// been removed: the client tested the Tamil voices on their phone and
+/// confirmed "Tamil 2" — now hardcoded in TeacherTts._pinnedTamilVoiceIndex,
+/// the same pinning pattern used for the English voice above.
 class SettingsTabScreen extends StatefulWidget {
   const SettingsTabScreen({super.key});
 
@@ -27,11 +23,6 @@ class SettingsTabScreen extends StatefulWidget {
 class _SettingsTabScreenState extends State<SettingsTabScreen> {
   double _rate = 1.0;
   bool _loaded = false;
-
-  // --- Temporary Tamil Voice testing list ---
-  List<TtsVoiceOption> _tamilVoices = [];
-  TtsVoiceOption? _selectedTamilVoice;
-  String? _previewingTamilVoiceName;
 
   @override
   void initState() {
@@ -47,8 +38,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     if (!mounted) return;
     setState(() {
       _rate = TeacherTts.instance.rateMultiplier;
-      _tamilVoices = TeacherTts.instance.tamilVoiceOptions;
-      _selectedTamilVoice = TeacherTts.instance.selectedTamilVoice;
       _loaded = true;
     });
   }
@@ -57,57 +46,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     if ((rate - 1.0).abs() < 0.03) return "Normal";
     if (rate < 1.0) return "${rate.toStringAsFixed(1)}×";
     return "${rate.toStringAsFixed(1)}×";
-  }
-
-  Future<void> _previewTamilVoice(TtsVoiceOption voice) async {
-    setState(() => _previewingTamilVoiceName = voice.name);
-    await TeacherTts.instance.previewTamilVoice(voice);
-    if (!mounted) return;
-    setState(() {
-      _selectedTamilVoice = TeacherTts.instance.selectedTamilVoice;
-      _previewingTamilVoiceName = null;
-    });
-  }
-
-  Widget _tamilVoiceChip(TtsVoiceOption voice) {
-    final selected = _selectedTamilVoice?.name == voice.name;
-    final loading = _previewingTamilVoiceName == voice.name;
-    return GestureDetector(
-      onTap: _previewingTamilVoiceName != null ? null : () => _previewTamilVoice(voice),
-      child: Container(
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: selected ? AppColors.primary : AppColors.primary.withOpacity(0.3), width: 1.4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (loading) ...[
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: selected ? Colors.white : AppColors.primary),
-              ),
-              const SizedBox(width: 8),
-            ] else if (selected) ...[
-              const Icon(Icons.volume_up, size: 16, color: Colors.white),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              voice.label,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: selected ? Colors.white : AppColors.ink,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -186,70 +124,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: cardDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.language, color: AppColors.primary),
-                      ),
-                      const SizedBox(width: 14),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Tamil Voice (testing)", style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800)),
-                            SizedBox(height: 2),
-                            Text("Tap a voice to hear it — tell us which one to keep",
-                                style: TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.35)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (!_loaded)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text("Checking…", style: TextStyle(fontSize: 13, color: AppColors.inkSoft)),
-                    )
-                  else if (_tamilVoices.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        "No Tamil voice found on this phone. Install one from phone Settings → System → "
-                        "Languages & input → Text-to-speech output → Install voice data → \"Tamil\".",
-                        style: TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.45),
-                      ),
-                    )
-                  else if (_tamilVoices.length == 1)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        "Only one Tamil voice (\"${_tamilVoices.first.label}\") is installed on this phone — "
-                        "no alternative to switch to here. A different-sounding Tamil voice pack would need to "
-                        "be installed from phone Settings first.",
-                        style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.45),
-                      ),
-                    )
-                  else
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(children: [for (final v in _tamilVoices) _tamilVoiceChip(v)]),
-                    ),
                 ],
               ),
             ),
