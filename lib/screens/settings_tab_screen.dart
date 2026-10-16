@@ -2,10 +2,21 @@ import 'package:flutter/material.dart';
 import '../services/teacher_tts.dart';
 import '../theme/app_theme.dart';
 
-/// Settings tab — Teacher Voice Speed (always worked) plus the newer
-/// Teacher Voice picker: real, on-device Indian-English voices the
-/// student can tap to preview and choose, built from whatever the
-/// engine's own getVoices() genuinely has installed on this phone.
+/// Settings tab — Teacher Voice Speed, plus a TEMPORARY "Tamil Voice"
+/// testing card. The permanent English voice picker (Indian-voice chips
+/// the student could tap to preview/choose) was removed per the client's
+/// explicit request: they listened to every voice and picked one specific
+/// one ("Indian English 7") to use everywhere, with no further choice
+/// shown to students — see TeacherTts._selectIndianEnglish for where that
+/// pinned voice is applied.
+///
+/// The Tamil card below exists only because the auto-picked Tamil voice
+/// turned out to sound female and the client wants a different one, and
+/// there is no "gender" field the app can read from the TTS engine to
+/// pick correctly on its own — same situation the English picker solved
+/// by letting the client tap through voices and tell us which one to
+/// pin. Once the client confirms a Tamil voice here, it should be
+/// hardcoded the same way "Indian English 7" was, and this card removed.
 class SettingsTabScreen extends StatefulWidget {
   const SettingsTabScreen({super.key});
 
@@ -17,11 +28,10 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
   double _rate = 1.0;
   bool _loaded = false;
 
-  // --- Teacher Voice picker ---
-  List<TtsVoiceOption> _voices = [];
-  TtsVoiceOption? _selectedVoice;
-  String? _previewingVoiceName; // name of the chip currently speaking
-  bool _refreshing = false;
+  // --- Temporary Tamil Voice testing list ---
+  List<TtsVoiceOption> _tamilVoices = [];
+  TtsVoiceOption? _selectedTamilVoice;
+  String? _previewingTamilVoiceName;
 
   @override
   void initState() {
@@ -30,14 +40,15 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
   }
 
   Future<void> _load() async {
-    // Ensures TeacherTts (and its saved rate/voice) is initialized even if
-    // the student opens Settings before ever using the mic/teacher voice.
+    // Ensures TeacherTts (and its saved rate, and its pinned voices) is
+    // initialized even if the student opens Settings before ever using
+    // the mic/teacher voice.
     await TeacherTts.instance.init();
     if (!mounted) return;
     setState(() {
       _rate = TeacherTts.instance.rateMultiplier;
-      _voices = TeacherTts.instance.voiceOptions;
-      _selectedVoice = TeacherTts.instance.selectedVoice;
+      _tamilVoices = TeacherTts.instance.tamilVoiceOptions;
+      _selectedTamilVoice = TeacherTts.instance.selectedTamilVoice;
       _loaded = true;
     });
   }
@@ -48,95 +59,21 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     return "${rate.toStringAsFixed(1)}×";
   }
 
-  /// Taps a voice chip: switches to that voice and speaks a short sample
-  /// so the student can hear it right away — "tap a voice to hear it".
-  Future<void> _previewVoice(TtsVoiceOption voice) async {
-    setState(() => _previewingVoiceName = voice.name);
-    await TeacherTts.instance.previewVoice(voice);
+  Future<void> _previewTamilVoice(TtsVoiceOption voice) async {
+    setState(() => _previewingTamilVoiceName = voice.name);
+    await TeacherTts.instance.previewTamilVoice(voice);
     if (!mounted) return;
     setState(() {
-      _selectedVoice = TeacherTts.instance.selectedVoice;
-      _previewingVoiceName = null;
+      _selectedTamilVoice = TeacherTts.instance.selectedTamilVoice;
+      _previewingTamilVoiceName = null;
     });
   }
 
-  /// Re-detects voices — picks up an Indian English voice pack just
-  /// installed from the phone's own Settings app, without closing and
-  /// reopening SpeakRight.
-  Future<void> _refreshVoices() async {
-    setState(() => _refreshing = true);
-    await TeacherTts.instance.recheckVoice();
-    if (!mounted) return;
-    setState(() {
-      _voices = TeacherTts.instance.voiceOptions;
-      _selectedVoice = TeacherTts.instance.selectedVoice;
-      _refreshing = false;
-    });
-  }
-
-  String _voiceSubtitle() {
-    if (!_loaded) return "Checking available voices…";
-    if (_voices.isEmpty) return "No Indian voice installed on this phone yet";
-    return "Indian English · tap a voice to hear it";
-  }
-
-  void _showGetMoreVoicesSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 18),
-              decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(4)),
-              alignment: Alignment.center,
-            ),
-            const Text("Get more Indian voices", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            const Text(
-              "1. Open this phone's own Settings app\n"
-              "2. Go to System → Languages & input → Text-to-speech output\n"
-              "3. Tap the gear icon next to the preferred engine (usually Google)\n"
-              "4. Tap \"Install voice data\"\n"
-              "5. Find \"English (India)\" and download it\n"
-              "6. Come back to SpeakRight → Settings and tap the refresh icon above",
-              style: TextStyle(fontSize: 13.5, color: AppColors.inkSoft, height: 1.6),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text("Got it", style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _voiceChip(TtsVoiceOption voice) {
-    final selected = _selectedVoice?.name == voice.name;
-    final loading = _previewingVoiceName == voice.name;
+  Widget _tamilVoiceChip(TtsVoiceOption voice) {
+    final selected = _selectedTamilVoice?.name == voice.name;
+    final loading = _previewingTamilVoiceName == voice.name;
     return GestureDetector(
-      onTap: _previewingVoiceName != null ? null : () => _previewVoice(voice),
+      onTap: _previewingTamilVoiceName != null ? null : () => _previewTamilVoice(voice),
       child: Container(
         margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -270,23 +207,16 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                         child: const Icon(Icons.language, color: AppColors.primary),
                       ),
                       const SizedBox(width: 14),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("Teacher Voice", style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 2),
-                            Text(_voiceSubtitle(),
-                                style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.35)),
+                            Text("Tamil Voice (testing)", style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800)),
+                            SizedBox(height: 2),
+                            Text("Tap a voice to hear it — tell us which one to keep",
+                                style: TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.35)),
                           ],
                         ),
-                      ),
-                      IconButton(
-                        onPressed: _refreshing ? null : _refreshVoices,
-                        tooltip: "Check for more voices",
-                        icon: _refreshing
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.refresh, color: AppColors.primary),
                       ),
                     ],
                   ),
@@ -296,32 +226,30 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Text("Checking…", style: TextStyle(fontSize: 13, color: AppColors.inkSoft)),
                     )
-                  else if (_voices.isEmpty)
+                  else if (_tamilVoices.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 4),
                       child: Text(
-                        "This phone's Indian English voice pack isn't installed yet — the teacher is using "
-                        "the phone's default voice for now.",
+                        "No Tamil voice found on this phone. Install one from phone Settings → System → "
+                        "Languages & input → Text-to-speech output → Install voice data → \"Tamil\".",
                         style: TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.45),
+                      ),
+                    )
+                  else if (_tamilVoices.length == 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        "Only one Tamil voice (\"${_tamilVoices.first.label}\") is installed on this phone — "
+                        "no alternative to switch to here. A different-sounding Tamil voice pack would need to "
+                        "be installed from phone Settings first.",
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.45),
                       ),
                     )
                   else
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: Row(children: [for (final v in _voices) _voiceChip(v)]),
+                      child: Row(children: [for (final v in _tamilVoices) _tamilVoiceChip(v)]),
                     ),
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: _showGetMoreVoicesSheet,
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.file_download_outlined, size: 16, color: AppColors.primary),
-                        SizedBox(width: 6),
-                        Text("Get more voices", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 13.5)),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
