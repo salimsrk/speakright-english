@@ -184,15 +184,23 @@ class TeacherTts {
     ];
   }
 
+  /// PINNED TAMIL VOICE: the client tested the Tamil voices on their phone
+  /// via the temporary "Tamil Voice (testing)" picker and confirmed "Tamil
+  /// 2" sounds right (the auto-picked first voice sounded female, which
+  /// they didn't want). Same reasoning as [_pinnedVoiceIndex] for English:
+  /// there's no stable cross-device voice name, only list position, so we
+  /// pin by index into this same getVoices()-found list. Falls back to the
+  /// last Tamil voice found on a phone with fewer than 2, rather than
+  /// guessing further.
+  static const _pinnedTamilVoiceIndex = 1; // "Tamil 2", 0-indexed
+
   /// Looks for every genuinely-installed Tamil voice the same way
   /// [_loadVoiceOptions] looks for Indian English ones — only trusting
   /// getVoices(), never just assuming setLanguage("ta-IN") will work.
   /// Tamil locale shows up as "ta-IN" (or occasionally "ta-LK") depending
-  /// on the engine, so any "ta-*" locale counts. Unlike the old
-  /// single-voice version of this method, this collects EVERY Tamil voice
-  /// found (not just the first) — needed so the temporary Settings testing
-  /// list can offer more than one, in case this phone has an alternative
-  /// to the one that turned out to sound female.
+  /// on the engine, so any "ta-*" locale counts. Collects EVERY Tamil voice
+  /// found (not just the first) so the pinned index above lands on the
+  /// same voice the client approved.
   Future<void> _detectTamilVoice() async {
     final found = <Map<String, String>>[]; // [{name, locale}]
     try {
@@ -230,20 +238,9 @@ class TeacherTts {
       _selectedTamilVoice = null;
       return;
     }
-    // Re-pick whatever was chosen last time in the testing list, if that
-    // exact voice is still available; otherwise default to the first one
-    // found (today's behavior, until the client confirms a better one).
-    TtsVoiceOption chosen = _tamilVoiceOptions.first;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedName = prefs.getString(_tamilVoiceNameKey);
-      if (savedName != null) {
-        chosen = _tamilVoiceOptions.firstWhere((v) => v.name == savedName, orElse: () => chosen);
-      }
-    } catch (_) {
-      // Non-fatal — just use the default.
-    }
-    _selectedTamilVoice = chosen;
+    _selectedTamilVoice = _pinnedTamilVoiceIndex < _tamilVoiceOptions.length
+        ? _tamilVoiceOptions[_pinnedTamilVoiceIndex]
+        : _tamilVoiceOptions.last;
   }
 
   /// Switches the Tamil voice used by [speakTamil] to [voice] and
