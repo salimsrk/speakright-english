@@ -7,6 +7,7 @@ import '../services/scoring.dart';
 import '../theme/app_theme.dart';
 import '../widgets/fun_fact_dialog.dart';
 import '../widgets/voice_replay_control.dart';
+import '../widgets/synced_read_aloud.dart';
 import 'results_screen.dart';
 
 class ReadingScreen extends StatefulWidget {
@@ -105,37 +106,19 @@ class _ReadingScreenState extends State<ReadingScreen> {
               child: Container(
                 padding: const EdgeInsets.all(18),
                 decoration: cardDecoration(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(t.passage, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.7)),
-                    tamilMeaning(t.passageTamil, topGap: 10),
-                  ],
-                ),
+                child: SyncedReadAloud(english: t.passage, tamil: t.passageTamil),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => TeacherTts.instance.speak(t.passage),
-                      icon: const Icon(Icons.volume_up),
-                      label: const Text("Hear Teacher read it"),
-                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _listening ? null : _mic,
-                      icon: const Icon(Icons.mic),
-                      label: Text(_listening ? "Listening…" : "Now you read it"),
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 14)),
-                    ),
-                  ),
-                ],
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _listening ? null : _mic,
+                  icon: const Icon(Icons.mic),
+                  label: Text(_listening ? "Listening…" : "Now you read it"),
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 14)),
+                ),
               ),
             ),
             if (_error != null)
