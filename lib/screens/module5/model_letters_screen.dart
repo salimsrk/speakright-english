@@ -5,6 +5,7 @@ import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/speak_and_practice_bar.dart';
 import '../../widgets/tts_speaker_button.dart';
+import '../../widgets/synced_read_aloud.dart';
 
 /// "Model Letters — Requisitions": the book's 8-point format checklist,
 /// followed by its two model official letters — each with a Listen/
@@ -157,18 +158,14 @@ class _ModelLettersScreenState extends State<ModelLettersScreen> {
                               ),
                             ),
                           const SizedBox(height: 12),
-                          for (int i = 0; i < letter.body.length; i++)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(letter.body[i], style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                                  if (i < letter.tamilBody.length && letter.tamilBody[i].isNotEmpty)
-                                    tamilMeaning(letter.tamilBody[i], topGap: 4),
-                                ],
+                          if (letter.tamilBody.isNotEmpty)
+                            SyncedReadAloud(english: letter.body.join(' '), tamil: letter.tamilBody.join(' '))
+                          else
+                            for (int i = 0; i < letter.body.length; i++)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(letter.body[i], style: const TextStyle(fontSize: 13.5, height: 1.5)),
                               ),
-                            ),
                           const SizedBox(height: 4),
                           SpeakAndPracticeBar(text: "${letter.subject}. ${letter.body.join(' ')}"),
                         ],

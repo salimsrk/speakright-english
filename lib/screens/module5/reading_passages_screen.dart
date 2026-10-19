@@ -4,6 +4,7 @@ import '../../services/student_mic.dart';
 import '../../services/teacher_tts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/speak_and_practice_bar.dart';
+import '../../widgets/synced_read_aloud.dart';
 import '../../widgets/tts_speaker_button.dart';
 
 /// "Improve Your Reading Skill" — all 5 passages shown in full, one
@@ -89,22 +90,36 @@ class _ReadingPassagesScreenState extends State<ReadingPassagesScreen> {
                             child: Text(p.tamilTitle, style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft, fontWeight: FontWeight.w600)),
                           ),
                         const SizedBox(height: 10),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5))),
-                            const SizedBox(width: 6),
-                            TtsSpeakerButton(text: p.passage),
-                          ],
-                        ),
                         if (p.tamilPassage.isNotEmpty)
+                          // Press play to hear the passage read aloud in
+                          // English, with the Tamil meaning of whichever
+                          // sentence is currently being spoken shown as a
+                          // live caption right below it — like subtitles
+                          // on a video, per the client's request.
+                          SyncedReadAloud(english: p.passage, tamil: p.tamilPassage)
+                        else
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(child: tamilMeaning(p.tamilPassage, topGap: 10)),
+                              Expanded(child: Text(p.passage, style: const TextStyle(fontSize: 13.5, height: 1.5))),
                               const SizedBox(width: 6),
-                              TtsSpeakerButton(text: p.tamilPassage, tamil: true),
+                              TtsSpeakerButton(text: p.passage),
                             ],
+                          ),
+                        if (p.tamilPassage.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.translate, size: 14, color: AppColors.inkSoft),
+                                const SizedBox(width: 6),
+                                const Expanded(
+                                  child: Text("Listen to the full Tamil translation",
+                                      style: TextStyle(fontSize: 11.5, color: AppColors.inkSoft)),
+                                ),
+                                TtsSpeakerButton(text: p.tamilPassage, tamil: true),
+                              ],
+                            ),
                           ),
                         const SizedBox(height: 12),
                         SpeakAndPracticeBar(text: p.passage),

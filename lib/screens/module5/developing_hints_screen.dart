@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
 import '../../widgets/speak_and_practice_bar.dart';
 import '../../widgets/tts_speaker_button.dart';
+import '../../widgets/synced_read_aloud.dart';
 
 /// "Composition - B: Developing Hints" — the book's 5 hint outlines,
 /// each with a "think first, then reveal" sample story, the same
@@ -121,21 +122,15 @@ class _DevelopingHintsScreenState extends State<DevelopingHintsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(child: Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5))),
-                                    const SizedBox(width: 6),
-                                    TtsSpeakerButton(text: h.sampleStory),
-                                  ],
-                                ),
                                 if (h.tamilSampleStory.isNotEmpty)
+                                  SyncedReadAloud(english: h.sampleStory, tamil: h.tamilSampleStory)
+                                else
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(child: tamilMeaning(h.tamilSampleStory, topGap: 8)),
+                                      Expanded(child: Text(h.sampleStory, style: const TextStyle(fontSize: 13.5, height: 1.5))),
                                       const SizedBox(width: 6),
-                                      TtsSpeakerButton(text: h.tamilSampleStory, tamil: true),
+                                      TtsSpeakerButton(text: h.sampleStory),
                                     ],
                                   ),
                                 const SizedBox(height: 10),
