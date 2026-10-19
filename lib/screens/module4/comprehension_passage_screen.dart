@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/fun_fact_dialog.dart';
 import '../../widgets/speak_and_practice_bar.dart';
 import '../../widgets/tts_speaker_button.dart';
+import '../../widgets/synced_read_aloud.dart';
 
 /// Shows one Module 4 reading passage: the English story, a short Tamil
 /// summary, then its five comprehension questions in a "think first,
@@ -81,21 +82,15 @@ class _ComprehensionPassageScreenState extends State<ComprehensionPassageScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5))),
-                            const SizedBox(width: 6),
-                            TtsSpeakerButton(text: passage.passage),
-                          ],
-                        ),
                         if (passage.tamilPassage.isNotEmpty)
+                          SyncedReadAloud(english: passage.passage, tamil: passage.tamilPassage)
+                        else
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(child: tamilMeaning(passage.tamilPassage, topGap: 10)),
+                              Expanded(child: Text(passage.passage, style: const TextStyle(fontSize: 14, height: 1.5))),
                               const SizedBox(width: 6),
-                              TtsSpeakerButton(text: passage.tamilPassage, tamil: true),
+                              TtsSpeakerButton(text: passage.passage),
                             ],
                           ),
                         const SizedBox(height: 12),
